@@ -224,10 +224,12 @@ if not directory_exists(OPT_ROOT_DIR):
     exit(-1)
     
 try:
-    OPT_PORT = int(argv[2])
+    if argc >= 3:
+        OPT_PORT = int(argv[2])
 except ValueError:
     print("Error: Port must be a positive integer value")
     exit(-1)
+    
 try:
     server = ThreadedHttpServer(('', OPT_PORT), MyServiceHandler)
     server.serve_forever()
