@@ -11,16 +11,20 @@ import cgi
 import urllib
 import threading
 import mimetypes
+import socket
 
-# test
-import time
+###### Options and default values ######
 
+# the port to listen on
+OPT_PORT = 8000
 
-SERV_PORT = 8001
-ROOT_DIR = "/home/timothy/"
+# the root directory of the virtual filesystem
+OPT_ROOT_DIR = "/home/timothy/RamDisk"
 
 # the number of bytes to read in a chunk when reading a file
-CHUNK_SIZE = 1024
+OPT_CHUNK_SIZE = 1024
+
+###### Helper Functions ######
 
 def directory_exists(path):
     """ Determine whether a folder exists. """
@@ -43,6 +47,8 @@ def concat_folder_file(folder, file):
         return folder + file
     else:
         return folder + "/" + file
+    
+###### HTML Templates ######
 
 FOLDER_LISTING_TEMPLATE = """
 <html class="html">
@@ -70,14 +76,16 @@ HTTP_NOCONTENT = 204
 HTTP_NOTFOUND = 404
 
 class ThreadedHttpServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
+    """ This class combines two classes ThreadingMixIn and BaseHTTPServer.HTTPServer
+        to create a multi-threaded server that can handle multiple connections simultaneously. """
     pass
 
 class MyServiceHandler(SimpleHTTPRequestHandler):
-
+    """ This class provides HTTP service to the client """
     def do_GET(self):
         """ Handle http GET request from client. """
         path = urllib.unquote(self.path)
-        full_path = ROOT_DIR + path
+        full_path = OPT_ROOT_DIR + path
         host = "http://" + self.headers["host"]
         
         print("Request File: " + full_path)
@@ -88,7 +96,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "text/html;charset=UTF-8")
             self.end_headers()
             
-            content = self.generate_folder_listing(host, ROOT_DIR, path)
+            content = self.generate_folder_listing(host, OPT_ROOT_DIR, path)
             
             self.wfile.write(content)
             
@@ -104,7 +112,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             # Read the file and send it to the client
             with open(full_path, "rb") as f:
                 while 1:
-                    chunk = f.read(CHUNK_SIZE)
+                    chunk = f.read(OPT_CHUNK_SIZE)
                     if chunk:
                         self.wfile.write(chunk)
                     else:
@@ -166,10 +174,39 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 body += "<br>"
 
         return FOLDER_LISTING_TEMPLATE % {"BODY": body}
+    
+###### Main Function ######
 
-if not directory_exists(ROOT_DIR):
-    sys.stderr.write("Error: Root directory does not exist.\n")
+# Read options from commandline.
+argv = sys.argv
+argc = len(argv)
+
+if argc != 2 and argc != 3:
+    print("Usage: " + argv[0] + " <root_dir> [port]")
     exit(-1)
-        
-server = ThreadedHttpServer(('', SERV_PORT), MyServiceHandler)
-server.serve_forever()
+
+OPT_ROOT_DIR = argv[1]
+
+if not directory_exists(OPT_ROOT_DIR):
+    print("Error: Root directory does not exist.\n")
+    exit(-1)
+    
+try:
+    OPT_PORT = int(argv[2])
+except ValueError:
+    print("Error: Port must be a positive integer value")
+    exit(-1)
+try:
+    server = ThreadedHttpServer(('', OPT_PORT), MyServiceHandler)
+    server.serve_forever()
+except socket.error, e:
+    if e.errno == 13: # permission denied
+        sys.stderr.write("Error: Permission Denied.\n")
+        if OPT_PORT < 1024:
+            sys.stderr.write("(Notice: Unix requires root privilege to bind on port<1024)\n")
+    elif e.errno == 98: # address already in use
+        sys.stderr.write("Error: Address already in use. Please try again later.\n")
+    else:
+        print(e)
+except KeyboardInterrupt:
+    sys.stderr.write("Server Terminated\n")
