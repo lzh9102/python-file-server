@@ -182,17 +182,20 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.send_response(HTTP_MOVED_PERMANENTLY) # redirect
             self.send_header("Location", host + PREFIX)
         else: # data file
-            full_path = concat_folder_file(strip_suffix(argv[0]), "data") + path
-            print("Request Data File: " + full_path)
-            if is_file(full_path):
-                self.send_file(full_path)
+#            full_path = concat_folder_file(strip_suffix(argv[0]), "data") + path
+#            print("Request Data File: " + full_path)
+#            if is_file(full_path):
+#                self.send_file(full_path)
+            self.send_response(HTTP_NOTFOUND, "Not Found")
             
     def send_file(self, filename):
         """ Read the file and send it to the client. """
         self.send_response(HTTP_OK)
         type,encoding = mimetypes.guess_type(filename)
+        filesize = os.path.getsize(filename)
         self.send_header("Content-Type", "%(TYPE)s;charset=%(ENCODING)s" % \
                          {"TYPE": type, "ENCODING": encoding})
+        self.send_header("Content-Length", str(filesize))
         self.end_headers()
         with open(filename, "rb") as f:
             while 1:
