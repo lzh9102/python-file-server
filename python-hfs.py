@@ -172,18 +172,19 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     def list_files(self, host, root, folder):
         body = ""
         path = root + folder
-        fileList = os.listdir(path)
+        fileList = sorted(os.listdir(path))
         for f in fileList: # list every file in the folder
-            if is_file(concat_folder_file(path, f)): # is directory
+            full_filename = concat_folder_file(path, f)
+            if is_file(full_filename): # is directory
                 body += self.generate_link(host, root, folder, f)
-                body += '(' + human_readable_size(os.path.getsize(path)) + ')'
+                body += '(' + human_readable_size(os.path.getsize(full_filename)) + ')'
                 body += "<br>"
         return body
     
     def list_subfolders(self, host, root, folder):
         body = ""
         path = root + folder
-        fileList = os.listdir(path)
+        fileList = sorted(os.listdir(path))
         for f in fileList: # list every file in the folder
             if not is_file(concat_folder_file(path, f)): # is directory
                 body += "(DIR) " # add (DIR) prefix to notify the user
