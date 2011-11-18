@@ -113,6 +113,14 @@ FOLDER_LISTING_TEMPLATE = """
 <html class="html">
     <head>
     <title>Python HTTP File Server</title>
+    <style type="text/css">
+    tr.trodd {
+        background-color: #E6FFCC
+    }
+    tr.treven {
+        background-color: #CCFFFF
+    }
+    </style>
     </head>
     <body>%(BODY)s</body>
 </html>
@@ -235,14 +243,22 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             {"LINK": link, "NAME": cgi.escape(file)}
             
     def generate_table_row(self, index, *fields):
-        result = "<tr>"
+        """ Generate a html table row with fields.
+            The index is used to decide the color of the row.
+            If index is negative, the color does not change. """
+        # assign the class of odd-numbered rows to "trodd" and even-numbered rows to "treven"
+        if index >= 0:
+            result = ("<tr class='trodd'>" if index & 1 else "<tr class = 'treven'>")
+        else: # don't change the class
+            result = "<tr>"
         for f in fields:
             result += "<td>" + str(f) + "</td>"
         result += "</tr>"
         return result
                 
     def list_files(self, host, root, folder):
-        i = 0
+        """ List all the files in html. """
+        i = 1 # this index is used to decide the color of a row
         body = ""
         path = root + folder
         fileList = sorted(os.listdir(path))
@@ -250,8 +266,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         body += "<table>"
         
         # table title
-        body += self.generate_table_row(0, "File", "Size")
-        body += self.generate_table_row(0, "", "")
+        body += self.generate_table_row(-1, "File", "Size")
+        body += self.generate_table_row(-1, "", "")
         
         # list subfolders
         for f in fileList:
