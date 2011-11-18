@@ -235,26 +235,28 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             {"LINK": link, "NAME": cgi.escape(file)}
                 
     def list_files(self, host, root, folder):
+        i = 0
         body = ""
         path = root + folder
         fileList = sorted(os.listdir(path))
-        for f in fileList: # list every file in the folder
-            full_filename = concat_folder_file(path, f)
-            if is_file(full_filename): # is directory
-                body += self.generate_link(host, root, folder, f)
-                body += '(' + human_readable_size(os.path.getsize(full_filename)) + ')'
-                body += "<br>"
-        return body
-    
-    def list_subfolders(self, host, root, folder):
-        body = ""
-        path = root + folder
-        fileList = sorted(os.listdir(path))
-        for f in fileList: # list every file in the folder
+        
+        # list subfolders
+        for f in fileList:
             if not is_file(concat_folder_file(path, f)): # is directory
                 body += "(DIR) " # add (DIR) prefix to notify the user
                 body += self.generate_link(host, root, folder, f)
                 body += "<br>"
+                i += 1
+        
+        # list files
+        for f in fileList:
+            full_filename = concat_folder_file(path, f)
+            if is_file(full_filename): # is file
+                body += self.generate_link(host, root, folder, f)
+                body += '(' + human_readable_size(os.path.getsize(full_filename)) + ')'
+                body += "<br>"
+                i += 1
+                              
         return body
 
     def generate_folder_listing(self, host, root, folder):
@@ -266,7 +268,6 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                folder + "<hr>"
         
         if directory_exists(path):
-            body += self.list_subfolders(host, root, folder)
             body += self.list_files(host, root, folder)
             
         body += "<hr>"
