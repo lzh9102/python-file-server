@@ -47,6 +47,18 @@ def concat_folder_file(folder, file):
         return folder + file
     else:
         return folder + "/" + file
+
+def human_readable_size(nsize):
+    K = 1024
+    M = K * 1024
+    G = M * 1024
+    if nsize > G:
+        return "%(SIZE).1f GiB" % {"SIZE": float(nsize) / G}
+    if nsize > M:
+        return "%(SIZE).1f MiB" % {"SIZE": float(nsize) / M}
+    if nsize > K:
+        return "%(SIZE).1f KiB" % {"SIZE": float(nsize) / K}
+    return str(nsize) + " B"
     
 ###### HTML Templates ######
 
@@ -153,14 +165,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             
     def generate_link(self, host, root, folder, file):
         """ Generate html link for a file/folder. """
-        path = root + concat_folder_file(folder, file)
-        if not os.path.exists(path):
-            return ""
-        else:
-            link = host + concat_folder_file(folder, file)
-            
-            return "<a href='%(LINK)s'>%(NAME)s</a>" % \
-                {"LINK": link, "NAME": cgi.escape(file)}
+        link = host + concat_folder_file(folder, file)
+        return "<a href='%(LINK)s'>%(NAME)s</a> " % \
+            {"LINK": link, "NAME": cgi.escape(file)}
                 
     def list_files(self, host, root, folder):
         body = ""
@@ -169,6 +176,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         for f in fileList: # list every file in the folder
             if is_file(concat_folder_file(path, f)): # is directory
                 body += self.generate_link(host, root, folder, f)
+                body += '(' + human_readable_size(os.path.getsize(path)) + ')'
                 body += "<br>"
         return body
     
