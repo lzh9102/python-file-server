@@ -161,6 +161,27 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             
             return "<a href='%(LINK)s'>%(NAME)s</a>" % \
                 {"LINK": link, "NAME": cgi.escape(file)}
+                
+    def list_files(self, host, root, folder):
+        body = ""
+        path = root + folder
+        fileList = os.listdir(path)
+        for f in fileList: # list every file in the folder
+            if is_file(concat_folder_file(path, f)): # is directory
+                body += self.generate_link(host, root, folder, f)
+                body += "<br>"
+        return body
+    
+    def list_subfolders(self, host, root, folder):
+        body = ""
+        path = root + folder
+        fileList = os.listdir(path)
+        for f in fileList: # list every file in the folder
+            if not is_file(concat_folder_file(path, f)): # is directory
+                body += "(DIR) " # add (DIR) prefix to notify the user
+                body += self.generate_link(host, root, folder, f)
+                body += "<br>"
+        return body
 
     def generate_folder_listing(self, host, root, folder):
         """ Generate the file listing HTML for a folder. """
@@ -169,13 +190,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         body = self.generate_parent_link(host, folder) + "&nbsp;&nbsp;&nbsp" + \
                self.generate_home_link(host) + "<br>" + \
                folder + "<hr>"
+        
         if directory_exists(path):
-            fileList = os.listdir(path)
-            for f in fileList: # list every file in the folder
-                if not is_file(concat_folder_file(path, f)): # is directory
-                    body += "(DIR) " # add (DIR) prefix to notify the user
-                body += self.generate_link(host, root, folder, f)
-                body += "<br>"
+            body += self.list_subfolders(host, root, folder)
+            body += self.list_files(host, root, folder)
 
         return FOLDER_LISTING_TEMPLATE % {"BODY": body}
     
@@ -190,6 +208,8 @@ if argc != 2 and argc != 3:
     exit(-1)
 
 OPT_ROOT_DIR = argv[1]
+if OPT_ROOT_DIR.endswith('/'):
+    OPT_ROOT_DIR = OPT_ROOT_DIR[0:len(OPT_ROOT_DIR)-1] # strip trailing '/'
 
 if not directory_exists(OPT_ROOT_DIR):
     print("Error: Root directory does not exist.\n")
