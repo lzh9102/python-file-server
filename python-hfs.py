@@ -29,13 +29,6 @@ OPT_CHUNK_SIZE = 1024
 # the root directory is http://127.0.0.1/root
 PREFIX = "/f"
 
-# the path to search for data files.
-# This path is located on the host filesystem.
-OPT_DATA_PATH = "data"
-
-# correct potential errors
-if OPT_DATA_PATH.endswith('/'): # strip trailing '/' after data path
-    OPT_DATA_PATH = OPT_DATA_PATH[0:len(OPT_DATA_PATH)-1]
 if not PREFIX.startswith('/'):
     PREFIX = '/' + PREFIX
 
@@ -189,7 +182,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.send_response(HTTP_MOVED_PERMANENTLY) # redirect
             self.send_header("Location", host + PREFIX)
         else: # data file
-            full_path = OPT_DATA_PATH + path
+            full_path = concat_folder_file(strip_suffix(argv[0]), "data") + path
             print("Request Data File: " + full_path)
             if is_file(full_path):
                 self.send_file(full_path)
