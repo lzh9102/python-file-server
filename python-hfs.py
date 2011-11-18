@@ -202,6 +202,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         if directory_exists(path):
             body += self.list_subfolders(host, root, folder)
             body += self.list_files(host, root, folder)
+            
+        body += "<hr>"
 
         return FOLDER_LISTING_TEMPLATE % {"BODY": body}
     
