@@ -233,6 +233,13 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         link = host + PREFIX + concat_folder_file(folder, file)
         return "<a href='%(LINK)s'>%(NAME)s</a> " % \
             {"LINK": link, "NAME": cgi.escape(file)}
+            
+    def generate_table_row(self, index, *fields):
+        result = "<tr>"
+        for f in fields:
+            result += "<td>" + str(f) + "</td>"
+        result += "</tr>"
+        return result
                 
     def list_files(self, host, root, folder):
         i = 0
@@ -240,22 +247,30 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         path = root + folder
         fileList = sorted(os.listdir(path))
         
+        body += "<table>"
+        
+        # table title
+        body += self.generate_table_row(0, "File", "Size")
+        body += self.generate_table_row(0, "", "")
+        
         # list subfolders
         for f in fileList:
             if not is_file(concat_folder_file(path, f)): # is directory
-                body += "(DIR) " # add (DIR) prefix to notify the user
-                body += self.generate_link(host, root, folder, f)
-                body += "<br>"
+                body += self.generate_table_row(i, "(DIR) " + \
+                    self.generate_link(host, root, folder, f) \
+                    , "")
                 i += 1
         
         # list files
         for f in fileList:
             full_filename = concat_folder_file(path, f)
             if is_file(full_filename): # is file
-                body += self.generate_link(host, root, folder, f)
-                body += '(' + human_readable_size(os.path.getsize(full_filename)) + ')'
-                body += "<br>"
+                body += self.generate_table_row(i, \
+                    self.generate_link(host, root, folder, f) \
+                    , human_readable_size(os.path.getsize(full_filename)))
                 i += 1
+                
+        body += "</table>"
                               
         return body
 
