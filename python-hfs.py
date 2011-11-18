@@ -16,10 +16,10 @@ import socket
 ###### Options and default values ######
 
 # the port to listen on
-OPT_PORT = 8000
+OPT_PORT = 80
 
 # the root directory of the virtual filesystem
-OPT_ROOT_DIR = "/home/timothy/RamDisk"
+OPT_ROOT_DIR = ""
 
 # the number of bytes to read in a chunk when reading a file
 OPT_CHUNK_SIZE = 1024
@@ -141,7 +141,11 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         if len(parent_dir) > 0 and parent_dir[0] == '/': # remove leading '/'
             parent_dir = parent_dir[1:]
         
-        return "<a href='" + concat_folder_file(host, parent_dir) + "'>Up</a>"
+        if folder == "/": # already at root directory
+            return "<u>Up</u>"
+        else:
+            return "<a href='" + concat_folder_file(host, parent_dir) + "'>Up</a>"
+            
     
     def generate_home_link(self, host):
         """ Generate link for root directory """
