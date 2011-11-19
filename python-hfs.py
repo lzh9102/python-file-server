@@ -322,6 +322,27 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
         return generate_folder_listing_html(body)
     
+    def get_param(self, key):
+        if key in self.__params:
+            return self.__params[key]
+        else:
+            return ""
+    
+    def parse_params(self):
+        """ Parse the parameters from url and request body """
+
+        # init the params
+        self.__params = {}
+
+        # get the params in query string
+        if self.path.find('?') != -1:
+            self.path, qs = self.path.split("?", 1)
+
+            for pair in qs.split("&"):
+                key, value = pair.split("=")
+                self.__params[key] = value
+
+    
 ###### Main Function ######
 
 # Read options from commandline.
