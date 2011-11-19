@@ -31,6 +31,10 @@ PREFIX = "/f"
 
 if not PREFIX.startswith('/'):
     PREFIX = '/' + PREFIX
+if PREFIX.endswith('/'):
+    PREFIX = PREFIX[0:len(PREFIX)-1]
+if len(PREFIX) == 0:
+    PREFIX = "/"
 
 ###### Helper Functions ######
 
@@ -126,6 +130,15 @@ FOLDER_LISTING_TEMPLATE = """
 </html>
 """
 
+REDIRECT_TEMPLATE = """
+<html class="html">
+    <head>
+    <meta http-equiv="Refresh" content="0; url=%(ROOT)s" />
+    </head>
+    <body><a href="%(ROOT)s">%(ROOT)s</a></body>
+</html>
+"""
+
 FILE_NOT_FOUND_TEMPLATE = """
 <html class="html">
     <head>
@@ -187,8 +200,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 
                 self.wfile.write(content)
         elif path == "/": # redirect '/' to /PREFIX
-            self.send_response(HTTP_MOVED_PERMANENTLY) # redirect
-            self.send_header("Location", host + PREFIX)
+            self.send_response(HTTP_OK) # redirect
+            self.send_header("Content-Type", "text/html;charset=UTF-8")
+            self.wfile.write(REDIRECT_TEMPLATE % {"ROOT": host + PREFIX})
+            
         else: # data file
 #            full_path = concat_folder_file(strip_suffix(argv[0]), "data") + path
 #            print("Request Data File: " + full_path)
