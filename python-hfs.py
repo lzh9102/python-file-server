@@ -27,14 +27,12 @@ OPT_CHUNK_SIZE = 1024
 # the prefix to add before the root directory
 # For example, if PREFIX is "/root" and the host is 127.0.0.1, then
 # the root directory is http://127.0.0.1/root
-PREFIX = "/f"
+PREFIX = "/"
 
 if not PREFIX.startswith('/'):
     PREFIX = '/' + PREFIX
 if PREFIX.endswith('/'):
     PREFIX = PREFIX[0:len(PREFIX)-1]
-if len(PREFIX) == 0:
-    PREFIX = "/"
 
 ###### Helper Functions ######
 
@@ -170,10 +168,12 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         print("Request File: " + path)
         
-        if prefix(path) == PREFIX:
+        if len(PREFIX) == 0 or prefix(path) == PREFIX:
             """ Handle Virtual Filesystem """
             # strip path with PREFIX
-            path = strip_prefix(path)
+            if len(PREFIX) != 0:
+                path = strip_prefix(path)
+            
             full_path = OPT_ROOT_DIR + path           
             
             if directory_exists(full_path):
@@ -230,6 +230,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     
     def generate_parent_link(self, host, folder):
         """ Generate link for the parent directory of "folder" """
+        if folder == "/":
+            return "<u>Up</u>"
+
         parent_dir = folder
         if parent_dir.endswith('/'): # remove trailing '/'
             parent_dir = parent_dir[0:len(parent_dir)-2]
@@ -237,14 +240,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         last_slash_index = parent_dir.rfind('/')
         if last_slash_index >= 0:
             parent_dir = parent_dir[0:last_slash_index]
-            
-        if len(parent_dir) > 0 and parent_dir[0] == '/': # remove leading '/'
-            parent_dir = parent_dir[1:]
         
-        if folder == "/": # already at root directory
-            return "<u>Up</u>"
-        else:
-            return "<a href='" + host + concat_folder_file(PREFIX, parent_dir) + "'>Up</a>"
+        return "<a href='" + host + PREFIX + parent_dir + "'>Up</a>"
             
     
     def generate_home_link(self, host):
