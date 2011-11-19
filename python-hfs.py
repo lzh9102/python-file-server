@@ -282,24 +282,26 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         body += "<table>"
         
         # table title
-        body += self.generate_table_row(-1, "File", "Size")
-        body += self.generate_table_row(-1, "", "")
+        body += self.generate_table_row(-1, "File", "Size", "Last Modified")
+        body += self.generate_table_row(-1, "", "", "")
         
         # list subfolders
         for f in fileList:
             if not is_file(concat_folder_file(path, f)): # is directory
                 body += self.generate_table_row(i, "(DIR) " + \
                     self.generate_link(host, root, folder, f) \
-                    , "")
+                    , "", "")
                 i += 1
         
         # list files
         for f in fileList:
             full_filename = concat_folder_file(path, f)
             if is_file(full_filename): # is file
+                last_modified = self.date_time_string(os.path.getmtime(full_filename))
                 body += self.generate_table_row(i, \
                     self.generate_link(host, root, folder, f) \
-                    , human_readable_size(os.path.getsize(full_filename)))
+                    , human_readable_size(os.path.getsize(full_filename))
+                    , last_modified)
                 i += 1
                 
         body += "</table>"
