@@ -318,6 +318,9 @@ if argc != 2 and argc != 3:
 OPT_ROOT_DIR = argv[1]
 if OPT_ROOT_DIR.endswith('/'):
     OPT_ROOT_DIR = OPT_ROOT_DIR[0:len(OPT_ROOT_DIR)-1] # strip trailing '/'
+if len(OPT_ROOT_DIR) == 0:
+    OPT_ROOT_DIR = "/"
+    print("Warning: You have shared the entire filesystem.")
 
 if not directory_exists(OPT_ROOT_DIR):
     print("Error: Root directory does not exist.\n")
