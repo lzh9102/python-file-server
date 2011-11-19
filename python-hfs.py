@@ -216,10 +216,14 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.send_response(HTTP_OK)
         type,encoding = mimetypes.guess_type(filename)
         filesize = os.path.getsize(filename)
+        last_modified = self.date_time_string(int(os.path.getmtime(filename)))
+        
         self.send_header("Content-Type", "%(TYPE)s;charset=%(ENCODING)s" % \
                          {"TYPE": type, "ENCODING": encoding})
         self.send_header("Content-Length", str(filesize))
+        self.send_header("Last-Modified", last_modified)
         self.end_headers()
+        
         with open(filename, "rb") as f:
             while 1:
                 chunk = f.read(OPT_CHUNK_SIZE)
