@@ -39,9 +39,9 @@ if PREFIX.endswith('/'):
 def is_file(path):
     return os.path.isfile(path)
 
-def is_dir(path):
+def is_dir(path, AllowLink=False):
     """ Determine whether path is a directory, excluding symbolic links """
-    return os.path.isdir(path) and not os.path.islink(path)
+    return os.path.isdir(path) and (AllowLink or (not os.path.islink(path)))
 
 def prefix(path):
     """ Get the top-level folder in path.
@@ -173,7 +173,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             if len(PREFIX) != 0:
                 path = strip_prefix(path)
             
-            full_path = OPT_ROOT_DIR + path           
+            full_path = OPT_ROOT_DIR + path   
             
             if is_dir(full_path):
                 """ Handle directory listing. """
@@ -339,7 +339,7 @@ if len(OPT_ROOT_DIR) == 0:
     OPT_ROOT_DIR = "/"
     print("Warning: You have shared the entire filesystem.")
 
-if not is_dir(OPT_ROOT_DIR):
+if not is_dir(OPT_ROOT_DIR, AllowLink=True):
     print("Error: Root directory does not exist.\n")
     exit(-1)
     
