@@ -36,19 +36,12 @@ if PREFIX.endswith('/'):
 
 ###### Helper Functions ######
 
-def directory_exists(path):
-    """ Determine whether a folder exists. """
-    if not os.path.exists(path):
-        return False
-    mode = os.stat(path).st_mode
-    return stat.S_ISDIR(mode)
-
 def is_file(path):
-    """ Determine whether variable "path" is a file (i.e. not a folder). """
-    if not os.path.exists(path):
-        return False
-    mode = os.stat(path).st_mode
-    return not stat.S_ISDIR(mode)
+    return os.path.isfile(path)
+
+def is_dir(path):
+    """ Determine whether path is a directory, excluding symbolic links """
+    return os.path.isdir(path) and not os.path.islink(path)
 
 def prefix(path):
     """ Get the top-level folder in path.
@@ -182,7 +175,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             
             full_path = OPT_ROOT_DIR + path           
             
-            if directory_exists(full_path):
+            if is_dir(full_path):
                 """ Handle directory listing. """
                 self.send_response(HTTP_OK)
                 self.send_header("Content-Type", "text/html;charset=UTF-8")
@@ -293,7 +286,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         # list subfolders
         for f in fileList:
-            if not is_file(concat_folder_file(path, f)): # is directory
+            if is_dir(concat_folder_file(path, f)):
                 body += self.generate_table_row(i, "(DIR) " + \
                     self.generate_link(host, root, folder, f) \
                     , "", "")
@@ -322,7 +315,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                self.generate_home_link(host) + "<br>" + \
                folder + "<hr>"
         
-        if directory_exists(path):
+        if is_dir(path):
             body += self.list_files(host, root, folder)
             
         body += "<hr>"
@@ -346,7 +339,7 @@ if len(OPT_ROOT_DIR) == 0:
     OPT_ROOT_DIR = "/"
     print("Warning: You have shared the entire filesystem.")
 
-if not directory_exists(OPT_ROOT_DIR):
+if not is_dir(OPT_ROOT_DIR):
     print("Error: Root directory does not exist.\n")
     exit(-1)
     
