@@ -127,6 +127,8 @@ FOLDER_LISTING_TEMPLATE = """
     <body>%(BODY)s</body>
 </html>
 """
+def generate_folder_listing_html(body):
+    return FOLDER_LISTING_TEMPLATE % {"BODY": body}
 
 REDIRECT_TEMPLATE = """
 <html class="html">
@@ -136,6 +138,8 @@ REDIRECT_TEMPLATE = """
     <body><a href="%(ROOT)s">%(ROOT)s</a></body>
 </html>
 """
+def generate_redirect_html(url):
+    return REDIRECT_TEMPLATE % {"ROOT": url}
 
 FILE_NOT_FOUND_TEMPLATE = """
 <html class="html">
@@ -147,6 +151,8 @@ FILE_NOT_FOUND_TEMPLATE = """
     </body>
 </html>
 """
+def generate_file_not_found_html(file):
+    return FILE_NOT_FOUND_TEMPLATE % {"FILE": file}
 
 # HTTP Reply
 HTTP_OK = 200
@@ -196,13 +202,13 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "text/html;charset=UTF-8")
                 self.end_headers()
                 
-                content = FILE_NOT_FOUND_TEMPLATE % {"FILE": path}
+                content = generate_file_not_found_html(path)
                 
                 self.wfile.write(content)
         elif path == "/": # redirect '/' to /PREFIX
             self.send_response(HTTP_OK) # redirect
             self.send_header("Content-Type", "text/html;charset=UTF-8")
-            self.wfile.write(REDIRECT_TEMPLATE % {"ROOT": host + PREFIX})
+            self.wfile.write(generate_redirect_html(host + PREFIX))
             
         else: # data file
 #            full_path = concat_folder_file(strip_suffix(argv[0]), "data") + path
@@ -321,7 +327,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             
         body += "<hr>"
 
-        return FOLDER_LISTING_TEMPLATE % {"BODY": body}
+        return generate_folder_listing_html(body)
     
 ###### Main Function ######
 
