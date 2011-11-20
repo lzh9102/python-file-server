@@ -12,6 +12,7 @@ import urllib
 import threading
 import mimetypes
 import socket
+import time
 
 ###### Options and default values ######
 
@@ -104,6 +105,21 @@ def human_readable_size(nsize):
     if nsize > K:
         return "%(SIZE).1f KiB" % {"SIZE": float(nsize) / K}
     return str(nsize) + " B"
+
+def WRITE_LOG(message, client=None):
+    t = time.localtime()
+    timestr = "%4d-%02d-%02d %02d:%02d:%02d" % \
+        (t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec)
+    
+    output = "[" + timestr + "] "
+    if client != None:
+        output += "Client " + client + ": "
+    output += message
+    
+    print(output)
+
+def DEBUG(message):
+    sys.stderr.write("DEBUG: %s\n" % (message))
     
 ###### HTML Templates ######
 
@@ -168,7 +184,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         path = urllib.unquote(self.path)
         host = "http://" + self.headers["host"]
         
-        print("Request File: " + path)
+        DEBUG("HTTP GET Request: " + path)
         
         if len(PREFIX) == 0 or prefix(path) == PREFIX:
             """ Handle Virtual Filesystem """
@@ -176,10 +192,11 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             if len(PREFIX) != 0:
                 path = strip_prefix(path)
             
-            full_path = OPT_ROOT_DIR + path   
+            full_path = OPT_ROOT_DIR + path
             
             if is_dir(full_path, AllowLink=OPT_FOLLOW_LINK):
                 """ Handle directory listing. """
+                DEBUG("List Dir: " + full_path)
                 self.send_response(HTTP_OK)
                 self.send_header("Content-Type", "text/html;charset=UTF-8")
                 self.end_headers()
@@ -190,7 +207,22 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 
             elif is_file(full_path):
                 """ Handle file downloading. """
-                self.send_file(full_path)
+                DEBUG("Download File: " + full_path)
+                client = self.address_string()
+                
+                try:                    
+                    WRITE_LOG("Start Downloading %s" % (path), client)
+                    
+                    t0 = time.time()
+                    size = self.send_file(full_path)
+                    seconds = int(time.time() - t0)
+                    
+                    hrs = human_readable_size; # abbreviate the function
+                    WRITE_LOG("Fully Downloaded %s - %s @ %d sec (%s/sec)"
+                        % (path, hrs(size), seconds, hrs(float(size)/seconds)), client)
+                except Exception:
+                    WRITE_LOG("Downloading Failed: %s" % (path), client)
+                    DEBUG("Downloading Failed: " + full_path)
                 
             else:
                 """ Handle File Not Found error. """
@@ -214,7 +246,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.send_response(HTTP_NOTFOUND, "Not Found")
             
     def send_file(self, filename):
-        """ Read the file and send it to the client. """
+        """ Read the file and send it to the client.
+            If the function succeeds, it returns the file size in bytes. """
         self.send_response(HTTP_OK)
         type,encoding = mimetypes.guess_type(filename)
         filesize = os.path.getsize(filename)
@@ -233,6 +266,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     self.wfile.write(chunk)
                 else:
                     break
+        
+        return filesize
     
     def generate_parent_link(self, host, folder):
         """ Generate link for the parent directory of "folder" """
@@ -394,6 +429,6 @@ except socket.error, e:
     elif e.errno == 98: # address already in use
         sys.stderr.write("Error: Address already in use. Please try again later.\n")
     else:
-        print(e)
+        DEBUG(e)
 except KeyboardInterrupt:
     sys.stderr.write("Server Terminated\n")
