@@ -251,11 +251,13 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         """ Generate link for root directory """
         return "<a href='" + host + PREFIX + "'>Home</a>"
             
-    def generate_link(self, host, root, folder, file):
+    def generate_link(self, host, root, folder, file, text=None):
         """ Generate html link for a file/folder. """
+        text = (file if text == None else text)
         link = host + PREFIX + concat_folder_file(folder, file)
+        link = (link[0:len(link)-1] if link.endswith('/') else link) # strip trailing '/'
         return "<a href='%(LINK)s'>%(NAME)s</a> " % \
-            {"LINK": link, "NAME": cgi.escape(file)}
+            {"LINK": link, "NAME": cgi.escape(text)}
             
     def generate_table_row(self, index, *fields):
         """ Generate a html table row with fields.
@@ -283,6 +285,12 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         # table title
         body += self.generate_table_row(-1, "File", "Size", "Last Modified")
         body += self.generate_table_row(-1, "", "", "")
+        
+        # generate "." directory
+        body += self.generate_table_row(i, \
+            "(DIR) " + self.generate_link(host, root, folder, "", ".") \
+            , "", "")
+        i += 1
         
         # list subfolders
         for f in fileList:
