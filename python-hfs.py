@@ -24,6 +24,9 @@ OPT_ROOT_DIR = ""
 # the number of bytes to read in a chunk when reading a file
 OPT_CHUNK_SIZE = 1024
 
+# whether to follow symlink folders
+OPT_FOLLOW_LINK = False
+
 # the prefix to add before the root directory
 # For example, if PREFIX is "/root" and the host is 127.0.0.1, then
 # the root directory is http://127.0.0.1/root
@@ -175,7 +178,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             
             full_path = OPT_ROOT_DIR + path   
             
-            if is_dir(full_path):
+            if is_dir(full_path, AllowLink=OPT_FOLLOW_LINK):
                 """ Handle directory listing. """
                 self.send_response(HTTP_OK)
                 self.send_header("Content-Type", "text/html;charset=UTF-8")
@@ -294,7 +297,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         # list subfolders
         for f in fileList:
-            if is_dir(concat_folder_file(path, f)):
+            if is_dir(concat_folder_file(path, f), AllowLink=OPT_FOLLOW_LINK):
                 body += self.generate_table_row(i, "(DIR) " + \
                     self.generate_link(host, root, folder, f) \
                     , "", "")
@@ -323,7 +326,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                self.generate_home_link(host) + "<br>" + \
                folder + "<hr>"
         
-        if is_dir(path):
+        if is_dir(path, AllowLink=OPT_FOLLOW_LINK):
             body += self.list_files(host, root, folder)
             
         body += "<hr>"
