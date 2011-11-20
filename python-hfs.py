@@ -28,6 +28,9 @@ OPT_CHUNK_SIZE = 1024
 # whether to follow symlink folders
 OPT_FOLLOW_LINK = False
 
+# file transmission rate limit in bytes
+OPT_RATE_LIMIT = 1024 * 1024 * 10
+
 # the prefix to add before the root directory
 # For example, if PREFIX is "/root" and the host is 127.0.0.1, then
 # the root directory is http://127.0.0.1/root
@@ -120,6 +123,39 @@ def WRITE_LOG(message, client=None):
 
 def DEBUG(message):
     sys.stderr.write("DEBUG: %s\n" % (message))
+    
+class RateLimiter:
+    MAX_PRECISION = 0.1
+
+    def __init__(self, maxrate):
+        """ @param rate allowed calls to limit() per second; a value of 0
+                    means no limit.  """
+        if maxrate == 0:
+            self.limit = lambda: 0
+        else:
+            self.__period = 1.0 / maxrate
+            self.__prev_time = time.time()
+            self.__counter = 0
+            self.__counter_max = 0
+            self.limit = lambda: self.__call_limit()
+    
+    def __call_limit(self):
+        self.__counter += 1
+        if self.__counter > self.__counter_max:
+            self.__counter = 0
+            interval = time.time() - self.__prev_time
+            min_interval = self.__period * (self.__counter_max + 1)
+            
+            if interval < min_interval:
+                time.sleep(min_interval - interval)
+
+            if interval < self.MAX_PRECISION:
+                self.__counter_max += 1
+            elif interval > 2 * self.MAX_PRECISION and self.__counter_max > 0:
+                self.__counter_max -= 1
+
+            self.__prev_time = time.time()
+    
     
 ###### HTML Templates ######
 
@@ -214,7 +250,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     WRITE_LOG("Start Downloading %s" % (path), client)
                     
                     t0 = time.time()
-                    size = self.send_file(full_path)
+                    size = self.send_file(full_path, RateLimit=OPT_RATE_LIMIT)
                     seconds = int(time.time() - t0)
                     
                     hrs = human_readable_size; # abbreviate the function
@@ -245,7 +281,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 #                self.send_file(full_path)
             self.send_response(HTTP_NOTFOUND, "Not Found")
             
-    def send_file(self, filename):
+    def send_file(self, filename, RateLimit=0):
         """ Read the file and send it to the client.
             If the function succeeds, it returns the file size in bytes. """
         self.send_response(HTTP_OK)
@@ -259,6 +295,11 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.send_header("Last-Modified", last_modified)
         self.end_headers()
         
+        if RateLimit == 0:
+            limiter = RateLimiter(0) # no limit
+        else:
+            limiter = RateLimiter(float(RateLimit) / OPT_CHUNK_SIZE)
+        
         with open(filename, "rb") as f:
             while 1:
                 chunk = f.read(OPT_CHUNK_SIZE)
@@ -266,6 +307,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     self.wfile.write(chunk)
                 else:
                     break
+                limiter.limit()
         
         return filesize
     
