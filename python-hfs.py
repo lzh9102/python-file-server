@@ -251,11 +251,16 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     
                     t0 = time.time()
                     size = self.send_file(full_path, RateLimit=OPT_RATE_LIMIT)
-                    seconds = int(time.time() - t0)
+                    seconds = time.time() - t0
+                    
+                    if seconds > 1:
+                        download_rate = "(%s/sec)" % (hrs(float(size)/seconds))
+                    else:
+                        download_rate = ""
                     
                     hrs = human_readable_size; # abbreviate the function
-                    WRITE_LOG("Fully Downloaded %s - %s @ %d sec (%s/sec)"
-                        % (path, hrs(size), seconds, hrs(float(size)/seconds)), client)
+                    WRITE_LOG("Fully Downloaded %s - %s @ %d sec %s"
+                        % (path, hrs(size), seconds, download_rate), client)
                 except Exception:
                     WRITE_LOG("Downloading Failed: %s" % (path), client)
                     DEBUG("Downloading Failed: " + full_path)
