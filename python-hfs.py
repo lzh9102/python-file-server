@@ -14,6 +14,7 @@ import mimetypes
 import socket
 import time
 import posixpath
+import locale
 
 ###### Options and default values ######
 
@@ -156,7 +157,10 @@ class RateLimiter:
                 self.__counter_max -= 1
 
             self.__prev_time = time.time()
-    
+
+__system_encoding = locale.getdefaultlocale()[1]
+def get_system_encoding():
+    return __system_encoding
     
 ###### HTML Templates ######
 
@@ -235,7 +239,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 """ Handle directory listing. """
                 DEBUG("List Dir: " + full_path)
                 self.send_response(HTTP_OK)
-                self.send_header("Content-Type", "text/html;charset=UTF-8")
+                self.send_header("Content-Type", "text/html;charset=%(ENCODING)s"
+                                 % {"ENCODING": get_system_encoding()})
                 self.end_headers()
                 
                 content = self.generate_folder_listing(OPT_ROOT_DIR, path)
@@ -269,7 +274,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             else:
                 """ Handle File Not Found error. """
                 self.send_response(HTTP_OK)
-                self.send_header("Content-Type", "text/html;charset=UTF-8")
+                self.send_header("Content-Type", "text/html;charset=%(ENCODING)s"
+                                 % {"ENCODING": get_system_encoding()})
                 self.end_headers()
                 
                 content = generate_file_not_found_html(path)
@@ -277,7 +283,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(content)
         elif path == "/": # redirect '/' to /PREFIX
             self.send_response(HTTP_OK) # redirect
-            self.send_header("Content-Type", "text/html;charset=UTF-8")
+            self.send_header("Content-Type", "text/html;charset=%(ENCODING)s"
+                             % {"ENCODING": get_system_encoding()})
             self.wfile.write(generate_redirect_html(PREFIX))
             
         else: # data file
@@ -482,6 +489,8 @@ try:
     server.daemon_threads = True
     
     WRITE_LOG("Server Started")
+    DEBUG("System Language: " + locale.getdefaultlocale()[0])
+    DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
     
     server.serve_forever()
 except socket.error, e:
