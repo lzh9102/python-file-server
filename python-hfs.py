@@ -13,6 +13,7 @@ import threading
 import mimetypes
 import socket
 import time
+import posixpath
 
 ###### Options and default values ######
 
@@ -164,10 +165,10 @@ FOLDER_LISTING_TEMPLATE = """
     <head>
     <title>Python HTTP File Server</title>
     <style type="text/css">
-    tr.trodd {
+    tr.tr_odd {
         background-color: #E6FFCC
     }
-    tr.treven {
+    tr.tr_even {
         background-color: #CCFFFF
     }
     </style>
@@ -228,7 +229,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             if len(PREFIX) != 0:
                 path = strip_prefix(path)
             
-            full_path = OPT_ROOT_DIR + path
+            full_path = self.get_local_path(path=path, rootdir=OPT_ROOT_DIR)
+            DEBUG("full_path: " + full_path)
             
             if is_dir(full_path, AllowLink=OPT_FOLLOW_LINK):
                 """ Handle directory listing. """
@@ -286,6 +288,24 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 #                self.send_file(full_path)
             self.send_response(HTTP_NOTFOUND, "Not Found")
             
+    def get_local_path(self, path, rootdir=None):
+        """ Translate a filename separated by "/" to the local file path. """
+        path = posixpath.normpath(path)
+        wordList = path.split('/')
+        
+        if rootdir == None:
+            path = ""
+        else:
+            path = rootdir
+            
+        for word in wordList:
+            drive, word = os.path.splitdrive(word)
+            head, word = os.path.split(word)
+            if word in (os.curdir, os.pardir): continue
+            path = os.path.join(path, word)
+        
+        return path
+            
     def send_file(self, filename, RateLimit=0):
         """ Read the file and send it to the client.
             If the function succeeds, it returns the file size in bytes. """
@@ -321,36 +341,30 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         if folder == "/":
             return "<u>Up</u>"
 
-        parent_dir = folder
-        if parent_dir.endswith('/'): # remove trailing '/'
-            parent_dir = parent_dir[0:len(parent_dir)-2]
+        parent_dir = strip_suffix(folder)
         
-        last_slash_index = parent_dir.rfind('/')
-        if last_slash_index >= 0:
-            parent_dir = parent_dir[0:last_slash_index]
-        
-        return "<a href='" + host + PREFIX + parent_dir + "'>Up</a>"
+        return "<a href='" + urllib.quote(PREFIX + parent_dir) + "'>Up</a>"
             
     
     def generate_home_link(self, host):
         """ Generate link for root directory """
-        return "<a href='" + host + PREFIX + "'>Home</a>"
+        return "<a href='" + PREFIX + "'>Home</a>"
             
     def generate_link(self, host, root, folder, file, text=None):
         """ Generate html link for a file/folder. """
         text = (file if text == None else text)
-        link = host + PREFIX + concat_folder_file(folder, file)
+        link = PREFIX + concat_folder_file(folder, file)
         link = (link[0:len(link)-1] if link.endswith('/') else link) # strip trailing '/'
         return "<a href='%(LINK)s'>%(NAME)s</a> " % \
-            {"LINK": link, "NAME": cgi.escape(text)}
+            {"LINK": urllib.quote(link), "NAME": cgi.escape(text)}
             
     def generate_table_row(self, index, *fields):
         """ Generate a html table row with fields.
             The index is used to decide the color of the row.
             If index is negative, the color does not change. """
-        # assign the class of odd-numbered rows to "trodd" and even-numbered rows to "treven"
+        # assign the class of odd-numbered rows to "tr_odd" and even-numbered rows to "tr_even"
         if index >= 0:
-            result = ("<tr class='trodd'>" if index & 1 else "<tr class = 'treven'>")
+            result = ("<tr class='tr_odd'>" if index & 1 else "<tr class = 'tr_even'>")
         else: # don't change the class
             result = "<tr>"
         for f in fields:
@@ -467,6 +481,9 @@ except ValueError:
 try:
     server = ThreadedHttpServer(('', OPT_PORT), MyServiceHandler)
     server.daemon_threads = True
+    
+    WRITE_LOG("Server Started")
+    
     server.serve_forever()
 except socket.error, e:
     if e.errno == 13: # permission denied
