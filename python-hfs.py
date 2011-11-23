@@ -219,7 +219,6 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         """ Handle http GET request from client. """
         path = urllib.unquote(self.path)
-        host = "http://" + self.headers["host"]
         
         DEBUG("HTTP GET Request: " + path)
         
@@ -239,7 +238,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "text/html;charset=UTF-8")
                 self.end_headers()
                 
-                content = self.generate_folder_listing(host, OPT_ROOT_DIR, path)
+                content = self.generate_folder_listing(OPT_ROOT_DIR, path)
                 
                 self.wfile.write(content)
                 
@@ -279,7 +278,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         elif path == "/": # redirect '/' to /PREFIX
             self.send_response(HTTP_OK) # redirect
             self.send_header("Content-Type", "text/html;charset=UTF-8")
-            self.wfile.write(generate_redirect_html(host + PREFIX))
+            self.wfile.write(generate_redirect_html(PREFIX))
             
         else: # data file
 #            full_path = concat_folder_file(strip_suffix(argv[0]), "data") + path
@@ -336,7 +335,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         return filesize
     
-    def generate_parent_link(self, host, folder):
+    def generate_parent_link(self, folder):
         """ Generate link for the parent directory of "folder" """
         if folder == "/":
             return "<u>Up</u>"
@@ -346,11 +345,11 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         return "<a href='" + urllib.quote(PREFIX + parent_dir) + "'>Up</a>"
             
     
-    def generate_home_link(self, host):
+    def generate_home_link(self):
         """ Generate link for root directory """
         return "<a href='" + PREFIX + "'>Home</a>"
             
-    def generate_link(self, host, root, folder, file, text=None):
+    def generate_link(self, root, folder, file, text=None):
         """ Generate html link for a file/folder. """
         text = (file if text == None else text)
         link = PREFIX + concat_folder_file(folder, file)
@@ -372,7 +371,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         result += "</tr>"
         return result
                 
-    def list_files(self, host, root, folder):
+    def list_files(self, root, folder):
         """ List all the files in html. """
         i = 1 # this index is used to decide the color of a row
         body = ""
@@ -387,7 +386,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         # generate "." directory
         body += self.generate_table_row(i, \
-            "(DIR) " + self.generate_link(host, root, folder, "", ".") \
+            "(DIR) " + self.generate_link(root, folder, "", ".") \
             , "", "")
         i += 1
         
@@ -395,7 +394,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         for f in fileList:
             if is_dir(concat_folder_file(path, f), AllowLink=OPT_FOLLOW_LINK):
                 body += self.generate_table_row(i, "(DIR) " + \
-                    self.generate_link(host, root, folder, f) \
+                    self.generate_link(root, folder, f) \
                     , "", "")
                 i += 1
         
@@ -405,7 +404,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             if is_file(full_filename): # is file
                 last_modified = self.date_time_string(os.path.getmtime(full_filename))
                 body += self.generate_table_row(i, \
-                    self.generate_link(host, root, folder, f) \
+                    self.generate_link(root, folder, f) \
                     , human_readable_size(os.path.getsize(full_filename))
                     , last_modified)
                 i += 1
@@ -414,16 +413,16 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                               
         return body
 
-    def generate_folder_listing(self, host, root, folder):
+    def generate_folder_listing(self, root, folder):
         """ Generate the file listing HTML for a folder. """
         path = root + folder
         
-        body = self.generate_parent_link(host, folder) + "&nbsp;&nbsp;&nbsp" + \
-               self.generate_home_link(host) + "<br>" + \
+        body = self.generate_parent_link(folder) + "&nbsp;&nbsp;&nbsp" + \
+               self.generate_home_link() + "<br>" + \
                folder + "<hr>"
         
         if is_dir(path, AllowLink=OPT_FOLLOW_LINK):
-            body += self.list_files(host, root, folder)
+            body += self.list_files(root, folder)
             
         body += "<hr>"
 
