@@ -15,6 +15,7 @@ import socket
 import time
 import posixpath
 import locale
+import argparse
 
 ###### Options and default values ######
 
@@ -37,11 +38,6 @@ OPT_RATE_LIMIT = 1024 * 1024 * 10
 # For example, if PREFIX is "/root" and the host is 127.0.0.1, then
 # the root directory is http://127.0.0.1/root
 PREFIX = "/"
-
-if not PREFIX.startswith('/'):
-    PREFIX = '/' + PREFIX
-if PREFIX.endswith('/'):
-    PREFIX = PREFIX[0:len(PREFIX)-1]
 
 ###### Helper Functions ######
 
@@ -455,52 +451,66 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 key, value = pair.split("=")
                 self.__params[key] = value
 
+def parse_command_line():
+    """ Parse command line option subroutine """
+    global OPT_ROOT_DIR, OPT_PORT, PREFIX
+    # Read options from commandline.
+    argv = sys.argv
+    argc = len(argv)
     
-###### Main Function ######
+    if argc != 2 and argc != 3:
+        print("Usage: " + argv[0] + " <root_dir> [port]")
+        exit(-1)
+    
+    OPT_ROOT_DIR = argv[1]
+    if OPT_ROOT_DIR.endswith('/'):
+        OPT_ROOT_DIR = OPT_ROOT_DIR[0:len(OPT_ROOT_DIR)-1] # strip trailing '/'
+    if len(OPT_ROOT_DIR) == 0:
+        OPT_ROOT_DIR = "/"
+        print("Warning: You have shared the entire filesystem.")
+    
+    if not is_dir(OPT_ROOT_DIR, AllowLink=True):
+        print("Error: Root directory does not exist.\n")
+        exit(-1)
+        
+    try:
+        if argc >= 3:
+            OPT_PORT = int(argv[2])
+    except ValueError:
+        print("Error: Port must be a positive integer value")
+        exit(-1)
+        
+    if not PREFIX.startswith('/'):
+        PREFIX = '/' + PREFIX
+    if PREFIX.endswith('/'):
+        PREFIX = PREFIX[0:len(PREFIX)-1]
+    
+###### Server Main Function ######
+def server_main():
+    """ The server main function """
+    try:
+        server = ThreadedHttpServer(('', OPT_PORT), MyServiceHandler)
+        server.daemon_threads = True
+        
+        WRITE_LOG("Server Started")
+        DEBUG("System Language: " + locale.getdefaultlocale()[0])
+        DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
+        
+        server.serve_forever()
+    except socket.error, e:
+        if e.errno == 13: # permission denied
+            sys.stderr.write("Error: Permission Denied.\n")
+            if OPT_PORT < 1024:
+                sys.stderr.write("(Notice: Unix requires root privilege to bind on port<1024)\n")
+        elif e.errno == 98: # address already in use
+            sys.stderr.write("Error: Address already in use. Please try again later.\n")
+        else:
+            DEBUG(e)
+    except KeyboardInterrupt:
+        sys.stderr.write("Server Terminated\n")
+    pass
 
-# Read options from commandline.
-argv = sys.argv
-argc = len(argv)
+if __name__ == "__main__":
+    parse_command_line()
+    server_main()
 
-if argc != 2 and argc != 3:
-    print("Usage: " + argv[0] + " <root_dir> [port]")
-    exit(-1)
-
-OPT_ROOT_DIR = argv[1]
-if OPT_ROOT_DIR.endswith('/'):
-    OPT_ROOT_DIR = OPT_ROOT_DIR[0:len(OPT_ROOT_DIR)-1] # strip trailing '/'
-if len(OPT_ROOT_DIR) == 0:
-    OPT_ROOT_DIR = "/"
-    print("Warning: You have shared the entire filesystem.")
-
-if not is_dir(OPT_ROOT_DIR, AllowLink=True):
-    print("Error: Root directory does not exist.\n")
-    exit(-1)
-    
-try:
-    if argc >= 3:
-        OPT_PORT = int(argv[2])
-except ValueError:
-    print("Error: Port must be a positive integer value")
-    exit(-1)
-    
-try:
-    server = ThreadedHttpServer(('', OPT_PORT), MyServiceHandler)
-    server.daemon_threads = True
-    
-    WRITE_LOG("Server Started")
-    DEBUG("System Language: " + locale.getdefaultlocale()[0])
-    DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
-    
-    server.serve_forever()
-except socket.error, e:
-    if e.errno == 13: # permission denied
-        sys.stderr.write("Error: Permission Denied.\n")
-        if OPT_PORT < 1024:
-            sys.stderr.write("(Notice: Unix requires root privilege to bind on port<1024)\n")
-    elif e.errno == 98: # address already in use
-        sys.stderr.write("Error: Address already in use. Please try again later.\n")
-    else:
-        DEBUG(e)
-except KeyboardInterrupt:
-    sys.stderr.write("Server Terminated\n")
