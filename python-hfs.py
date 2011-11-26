@@ -249,7 +249,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             localpath = self.get_local_path(path)
             DEBUG("localpath: " + localpath)
             
-            if path == "/" or is_dir(localpath, AllowLink=OPT_FOLLOW_LINK):
+            allow_link = (OPT_FOLLOW_LINK or strip_suffix(path) == "/")
+            if path == "/" or is_dir(localpath, AllowLink=allow_link):
                 """ Handle directory listing. """
                 DEBUG("List Dir: " + localpath)
                 self.send_response(HTTP_OK)
@@ -426,7 +427,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         # list subfolders
         for f in fileList:
             local_filename = (get_shared_file(f) if is_root else concat_folder_file(localpath, f))
-            if is_dir(local_filename, AllowLink=OPT_FOLLOW_LINK):
+            if is_dir(local_filename, AllowLink=(OPT_FOLLOW_LINK or is_root)):
                 body += self.generate_table_row(i, "(DIR) " + \
                     self.generate_link(concat_folder_file(virtualpath, f)) \
                     , "", "")
@@ -454,7 +455,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                self.generate_home_link() + "<br>" + \
                virtualpath + "<hr>"
         
-        if len(localpath) == 0 or is_dir(localpath, AllowLink=OPT_FOLLOW_LINK): # NOTE: remove AllowLink later
+        allow_link = (OPT_FOLLOW_LINK or strip_suffix(virtualpath) == "/")
+        if len(localpath) == 0 or is_dir(localpath, AllowLink=allow_link):
             body += self.list_files(virtualpath, localpath)
             
         body += "<hr>"
