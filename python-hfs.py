@@ -371,6 +371,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                          {"TYPE": type, "ENCODING": encoding})
         self.send_header("Content-Length", str(filesize))
         self.send_header("Last-Modified", last_modified)
+        self.send_no_cache_header()
         self.end_headers()
         
         if RateLimit == 0:
@@ -399,6 +400,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/x-tar")
         self.send_header("Content-Disposition", "attachment;filename=\"%s\""
                          % (ArchiveName))
+        self.send_no_cache_header()
         self.end_headers()
         
         if RateLimit == 0:
