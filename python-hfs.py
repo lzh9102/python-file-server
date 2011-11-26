@@ -290,14 +290,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             if path == "/" or is_dir(localpath, AllowLink=allow_link):
                 """ Handle directory listing. """
                 DEBUG("List Dir: " + localpath)
-                self.send_response(HTTP_OK)
-                self.send_header("Content-Type", "text/html;charset=%(ENCODING)s"
-                                 % {"ENCODING": get_system_encoding()})
-                self.end_headers()
-                
                 content = self.generate_folder_listing(path, localpath)
-                
-                self.wfile.write(content)
+                self.send_html(content)
                 
             elif is_file(localpath):
                 """ Handle file downloading. """
@@ -325,19 +319,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 
             else:
                 """ Handle File Not Found error. """
-                self.send_response(HTTP_OK)
-                self.send_header("Content-Type", "text/html;charset=%(ENCODING)s"
-                                 % {"ENCODING": get_system_encoding()})
-                self.end_headers()
+                self.send_html(generate_file_not_found_html(path))
                 
-                content = generate_file_not_found_html(path)
-                
-                self.wfile.write(content)
         elif path == "/": # redirect '/' to /PREFIX
-            self.send_response(HTTP_OK) # redirect
-            self.send_header("Content-Type", "text/html;charset=%(ENCODING)s"
-                             % {"ENCODING": get_system_encoding()})
-            self.wfile.write(generate_redirect_html(PREFIX))
+            self.send_html(generate_redirect_html(PREFIX))
             
         else: # data file
             self.send_response(HTTP_NOTFOUND, "Not Found")
@@ -365,6 +350,14 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             path = os.path.join(path, word)
         
         return path
+    
+    def send_html(self, content):
+        self.send_response(HTTP_OK) # redirect
+        self.send_header("Content-Type", "text/html;charset=%(ENCODING)s"
+                    % {"ENCODING": get_system_encoding()})
+        self.send_no_cache_header()
+        self.end_headers()
+        self.wfile.write(content)
             
     def send_file(self, filename, RateLimit=0):
         """ Read the file and send it to the client.
@@ -421,6 +414,11 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 name = suffix(f)
                 DEBUG("send_tar: add file " + localpath + " as " + name)
                 tar.add(localpath, name)
+                
+    def send_no_cache_header(self):
+        """ Send HTTP header to prevent browser caching. """
+        self.send_header("Cache-Control", "no-cache, must-revalidate")
+        self.send_header("Expires", "Sat, 26 Jul 1997 05:00:00 GMT") # date in the past
     
     def generate_parent_link(self, folder):
         """ Generate link for the parent directory of "folder" """
