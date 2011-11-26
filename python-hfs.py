@@ -397,12 +397,15 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         return filesize
     
-    def send_tar(self, virtualpaths, RateLimit=0):
+    def send_tar(self, virtualpaths, ArchiveName=None, RateLimit=0):
+        if ArchiveName == None:
+            ArchiveName = "archive.tar.gz"
+        
         self.send_response(HTTP_OK)
         
         self.send_header("Content-Type", "application/x-tar")
         self.send_header("Content-Disposition", "attachment;filename=\"%s\""
-                         % ("archive.tar.gz"))
+                         % (ArchiveName))
         self.end_headers()
         
         if RateLimit == 0:
