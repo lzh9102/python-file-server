@@ -493,14 +493,16 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
 def parse_command_line():
     """ Parse command line option subroutine """
-    global OPT_PORT, PREFIX
+    global OPT_PORT, OPT_FOLLOW_LINK, PREFIX
     
     parser = argparse.ArgumentParser(
             description="Share your files across the Internet.")
     parser.add_argument('file', type=str, nargs="+",
-                        help="file to be shared")
+                        help="file or directory to be shared")
     parser.add_argument('-p', '--port', type=int, default=OPT_PORT,
                         help="the port to listen on")
+    parser.add_argument('-f', '--follow-link', action="store_true", default=False,
+                        help="whether to follow symbolic links; disabled by default")
     
     args = parser.parse_args()
     
@@ -509,6 +511,7 @@ def parse_command_line():
             abspath = os.path.abspath(f)
             add_shared_file(key=os.path.basename(abspath), path=abspath)
     OPT_PORT = args.port
+    OPT_FOLLOW_LINK = args.follow_link
     
     if not PREFIX.startswith('/'):
         PREFIX = '/' + PREFIX
