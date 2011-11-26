@@ -506,7 +506,8 @@ def parse_command_line():
     
     for f in args.file:
         if os.path.exists(f): # TODO: deal with duplicate filenames and files.
-            add_shared_file(key=os.path.basename(f), path=f)
+            abspath = os.path.abspath(f)
+            add_shared_file(key=os.path.basename(abspath), path=abspath)
     OPT_PORT = args.port
     
     if not PREFIX.startswith('/'):
