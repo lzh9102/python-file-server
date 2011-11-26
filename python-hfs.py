@@ -242,6 +242,9 @@ class ThreadedHttpServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
 
 class MyServiceHandler(SimpleHTTPRequestHandler):
     """ This class provides HTTP service to the client """
+    def log_message(self, format, *args):
+        DEBUG("HTTP Server: " + (format % args))
+        
     def do_GET(self):
         """ Handle http GET request from client. """
         path = urllib.unquote(self.path)
@@ -311,10 +314,6 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.wfile.write(generate_redirect_html(PREFIX))
             
         else: # data file
-#            localpath = concat_folder_file(strip_suffix(argv[0]), "data") + path
-#            print("Request Data File: " + localpath)
-#            if is_file(localpath):
-#                self.send_file(localpath)
             self.send_response(HTTP_NOTFOUND, "Not Found")
             
     def get_local_path(self, path):
@@ -545,6 +544,5 @@ def server_main():
 
 if __name__ == "__main__":
     parse_command_line()
-    print("PREFIX="+PREFIX)
     server_main()
 
