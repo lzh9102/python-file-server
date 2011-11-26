@@ -16,6 +16,7 @@ import time
 import posixpath
 import locale
 import argparse
+import tarfile
 
 ###### Options and default values ######
 
@@ -273,6 +274,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         DEBUG("HTTP GET Request: " + path)
         
+        self.parse_params()
+        path = path.split("?")[0] # strip arguments from path
+        
         if len(PREFIX) == 0 or prefix(path) == PREFIX:
             """ Handle Virtual Filesystem """
             # strip path with PREFIX
@@ -392,6 +396,28 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     break
         
         return filesize
+    
+    def send_tar(self, virtualpaths, RateLimit=0):
+        self.send_response(HTTP_OK)
+        
+        self.send_header("Content-Type", "application/x-tar")
+        self.send_header("Content-Disposition", "attachment;filename=\"%s\""
+                         % ("archive.tar.gz"))
+        self.end_headers()
+        
+        if RateLimit == 0:
+            rate_limit = 0 # no limit
+        else:
+            rate_limit = float(RateLimit) / OPT_CHUNK_SIZE
+        
+        writer = RateLimitingWriter(self.wfile, rate_limit)
+        
+        with tarfile.open(fileobj=writer, mode="w|gz") as tar:
+            for f in virtualpaths:
+                localpath = self.get_local_path(f)
+                name = suffix(f)
+                DEBUG("send_tar: add file " + localpath + " as " + name)
+                tar.add(localpath, name)
     
     def generate_parent_link(self, folder):
         """ Generate link for the parent directory of "folder" """
