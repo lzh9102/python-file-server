@@ -454,15 +454,19 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 def parse_command_line():
     """ Parse command line option subroutine """
     global OPT_ROOT_DIR, OPT_PORT, PREFIX
-    # Read options from commandline.
-    argv = sys.argv
-    argc = len(argv)
     
-    if argc != 2 and argc != 3:
-        print("Usage: " + argv[0] + " <root_dir> [port]")
-        exit(-1)
+    parser = argparse.ArgumentParser(
+            description="Share your files across the Internet.")
+    parser.add_argument('path', type=str,
+                        help="the root directory to be shared")
+    parser.add_argument('-p', '--port', type=int, default=OPT_PORT,
+                        help="the port to listen on")
     
-    OPT_ROOT_DIR = argv[1]
+    args = parser.parse_args()
+    
+    OPT_ROOT_DIR = args.path
+    OPT_PORT = args.port
+    
     if OPT_ROOT_DIR.endswith('/'):
         OPT_ROOT_DIR = OPT_ROOT_DIR[0:len(OPT_ROOT_DIR)-1] # strip trailing '/'
     if len(OPT_ROOT_DIR) == 0:
@@ -472,14 +476,7 @@ def parse_command_line():
     if not is_dir(OPT_ROOT_DIR, AllowLink=True):
         print("Error: Root directory does not exist.\n")
         exit(-1)
-        
-    try:
-        if argc >= 3:
-            OPT_PORT = int(argv[2])
-    except ValueError:
-        print("Error: Port must be a positive integer value")
-        exit(-1)
-        
+    
     if not PREFIX.startswith('/'):
         PREFIX = '/' + PREFIX
     if PREFIX.endswith('/'):
