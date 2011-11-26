@@ -179,6 +179,28 @@ class RateLimiter:
                 self.__counter_max -= 1
 
             self.__prev_time = time.time()
+            
+class RateLimitingWriter:
+    """ Limit the writing rate to the file """
+    def __init__(self, file, maxrate):
+        """ Constructor of RateLimitingWriter
+            @param file the file object to be written to.
+            It can be any object with write() method.
+            @param maxrate maximum bytes to write per second """
+        self.__file = file
+        self.__limiter = RateLimiter(maxrate)
+
+    def write(self, data):
+        length = len(data)
+        nleft = length
+        index = 0
+        while nleft > 0:
+            end = index + OPT_CHUNK_SIZE
+            end = (length if end > length else end)
+            self.__file.write(data[index:end])
+            nleft -= OPT_CHUNK_SIZE
+            index += OPT_CHUNK_SIZE
+            self.__limiter.limit()
 
 __system_encoding = locale.getdefaultlocale()[1]
 def get_system_encoding():
@@ -355,18 +377,19 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         
         if RateLimit == 0:
-            limiter = RateLimiter(0) # no limit
+            rate_limit = 0 # no limit
         else:
-            limiter = RateLimiter(float(RateLimit) / OPT_CHUNK_SIZE)
+            rate_limit = float(RateLimit) / OPT_CHUNK_SIZE
+            
+        writer = RateLimitingWriter(self.wfile, rate_limit)
         
         with open(filename, "rb") as f:
             while 1:
                 chunk = f.read(OPT_CHUNK_SIZE)
                 if chunk:
-                    self.wfile.write(chunk)
+                    writer.write(chunk)
                 else:
                     break
-                limiter.limit()
         
         return filesize
     
