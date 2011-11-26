@@ -22,9 +22,6 @@ import argparse
 # the port to listen on
 OPT_PORT = 80
 
-# the root directory of the virtual filesystem
-OPT_ROOT_DIR = ""
-
 # the number of bytes to read in a chunk when reading a file
 OPT_CHUNK_SIZE = 1024
 
@@ -38,6 +35,24 @@ OPT_RATE_LIMIT = 1024 * 1024 * 10
 # For example, if PREFIX is "/root" and the host is 127.0.0.1, then
 # the root directory is http://127.0.0.1/root
 PREFIX = "/"
+
+# The list of files appearing in the root of the virtual filesystem.
+# TODO: Implement locking to protect concurrent access.
+SHARED_FILES = {}
+def add_shared_file(key, path):
+    SHARED_FILES[key] = path
+def get_shared_file(key):
+    if key not in SHARED_FILES:
+        return ""
+    else:
+        return SHARED_FILES[key]
+def remove_shared_file(key):
+    try:
+        SHARED_FILES.pop(key)
+    except Exception:
+        pass
+def get_shared_files():
+    return SHARED_FILES.keys()
 
 ###### Helper Functions ######
 
@@ -56,6 +71,9 @@ def prefix(path):
         return path[0:slash_index+1]
     else:
         return path
+
+def suffix(path):
+    return os.path.basename(path)
     
 def strip_prefix(path):
     """ Remove the top-level folder name in path
@@ -228,31 +246,31 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             if len(PREFIX) != 0:
                 path = strip_prefix(path)
             
-            full_path = self.get_local_path(path=path, rootdir=OPT_ROOT_DIR)
-            DEBUG("full_path: " + full_path)
+            localpath = self.get_local_path(path)
+            DEBUG("localpath: " + localpath)
             
-            if is_dir(full_path, AllowLink=OPT_FOLLOW_LINK):
+            if path == "/" or is_dir(localpath, AllowLink=OPT_FOLLOW_LINK):
                 """ Handle directory listing. """
-                DEBUG("List Dir: " + full_path)
+                DEBUG("List Dir: " + localpath)
                 self.send_response(HTTP_OK)
                 self.send_header("Content-Type", "text/html;charset=%(ENCODING)s"
                                  % {"ENCODING": get_system_encoding()})
                 self.end_headers()
                 
-                content = self.generate_folder_listing(OPT_ROOT_DIR, path)
+                content = self.generate_folder_listing(path, localpath)
                 
                 self.wfile.write(content)
                 
-            elif is_file(full_path):
+            elif is_file(localpath):
                 """ Handle file downloading. """
-                DEBUG("Download File: " + full_path)
+                DEBUG("Download File: " + localpath)
                 client = self.address_string()
                 
                 try:                    
                     WRITE_LOG("Start Downloading %s" % (path), client)
                     
                     t0 = time.time()
-                    size = self.send_file(full_path, RateLimit=OPT_RATE_LIMIT)
+                    size = self.send_file(localpath, RateLimit=OPT_RATE_LIMIT)
                     seconds = time.time() - t0
                     
                     if seconds > 1:
@@ -265,7 +283,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                         % (path, hrs(size), seconds, download_rate), client)
                 except Exception:
                     WRITE_LOG("Downloading Failed: %s" % (path), client)
-                    DEBUG("Downloading Failed: " + full_path)
+                    DEBUG("Downloading Failed: " + localpath)
                 
             else:
                 """ Handle File Not Found error. """
@@ -284,21 +302,27 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.wfile.write(generate_redirect_html(PREFIX))
             
         else: # data file
-#            full_path = concat_folder_file(strip_suffix(argv[0]), "data") + path
-#            print("Request Data File: " + full_path)
-#            if is_file(full_path):
-#                self.send_file(full_path)
+#            localpath = concat_folder_file(strip_suffix(argv[0]), "data") + path
+#            print("Request Data File: " + localpath)
+#            if is_file(localpath):
+#                self.send_file(localpath)
             self.send_response(HTTP_NOTFOUND, "Not Found")
             
-    def get_local_path(self, path, rootdir=None):
+    def get_local_path(self, path):
         """ Translate a filename separated by "/" to the local file path. """
         path = posixpath.normpath(path)
         wordList = path.split('/')
+        wordList = wordList[1:] # remove the first item because it is always empty
         
-        if rootdir == None:
-            path = ""
-        else:
-            path = rootdir
+        if len(wordList) == 0:
+            return ""
+        
+        root = get_shared_file(wordList[0])
+        if root == "":
+            return ""
+        wordList = wordList[1:]
+
+        path = root
             
         for word in wordList:
             drive, word = os.path.splitdrive(word)
@@ -350,12 +374,13 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     
     def generate_home_link(self):
         """ Generate link for root directory """
-        return "<a href='" + PREFIX + "'>Home</a>"
+        link = ("/" if len(PREFIX) == 0 else PREFIX)
+        return "<a href='" + link + "'>Home</a>"
             
-    def generate_link(self, root, folder, file, text=None):
+    def generate_link(self, virtualpath, text=None):
         """ Generate html link for a file/folder. """
-        text = (file if text == None else text)
-        link = PREFIX + concat_folder_file(folder, file)
+        text = (suffix(virtualpath) if text == None else text)
+        link = PREFIX + virtualpath
         link = (link[0:len(link)-1] if link.endswith('/') else link) # strip trailing '/'
         return "<a href='%(LINK)s'>%(NAME)s</a> " % \
             {"LINK": urllib.quote(link), "NAME": cgi.escape(text)}
@@ -374,13 +399,19 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         result += "</tr>"
         return result
                 
-    def list_files(self, root, folder):
+    def list_files(self, virtualpath, localpath):
         """ List all the files in html. """
         i = 1 # this index is used to decide the color of a row
         body = ""
-        path = root + folder
-        fileList = sorted(os.listdir(path))
+
+        if virtualpath == "/":
+            fileList = get_shared_files() # list virtual filesystem root
+            is_root = True
+        else:
+            fileList = sorted(os.listdir(localpath))
+            is_root = False
         
+        print("fileList=",fileList)
         body += "<table>"
         
         # table title
@@ -389,26 +420,27 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         # generate "." directory
         body += self.generate_table_row(i, \
-            "(DIR) " + self.generate_link(root, folder, "", ".") \
+            "(DIR) " + self.generate_link(virtualpath, ".") \
             , "", "")
         i += 1
         
         # list subfolders
         for f in fileList:
-            if is_dir(concat_folder_file(path, f), AllowLink=OPT_FOLLOW_LINK):
+            local_filename = (get_shared_file(f) if is_root else concat_folder_file(localpath, f))
+            if is_dir(local_filename, AllowLink=OPT_FOLLOW_LINK):
                 body += self.generate_table_row(i, "(DIR) " + \
-                    self.generate_link(root, folder, f) \
+                    self.generate_link(concat_folder_file(virtualpath, f)) \
                     , "", "")
                 i += 1
         
         # list files
         for f in fileList:
-            full_filename = concat_folder_file(path, f)
-            if is_file(full_filename): # is file
-                last_modified = self.date_time_string(os.path.getmtime(full_filename))
+            local_filename = (get_shared_file(f) if is_root else concat_folder_file(localpath, f))
+            if is_file(local_filename): # is file
+                last_modified = self.date_time_string(os.path.getmtime(local_filename))
                 body += self.generate_table_row(i, \
-                    self.generate_link(root, folder, f) \
-                    , human_readable_size(os.path.getsize(full_filename))
+                    self.generate_link(concat_folder_file(virtualpath, f)) \
+                    , human_readable_size(os.path.getsize(local_filename))
                     , last_modified)
                 i += 1
                 
@@ -416,16 +448,15 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                               
         return body
 
-    def generate_folder_listing(self, root, folder):
+    def generate_folder_listing(self, virtualpath, localpath):
         """ Generate the file listing HTML for a folder. """
-        path = root + folder
         
-        body = self.generate_parent_link(folder) + "&nbsp;&nbsp;&nbsp" + \
+        body = self.generate_parent_link(virtualpath) + "&nbsp;&nbsp;&nbsp" + \
                self.generate_home_link() + "<br>" + \
-               folder + "<hr>"
+               virtualpath + "<hr>"
         
-        if is_dir(path, AllowLink=OPT_FOLLOW_LINK):
-            body += self.list_files(root, folder)
+        if len(localpath) == 0 or is_dir(localpath, AllowLink=OPT_FOLLOW_LINK): # NOTE: remove AllowLink later
+            body += self.list_files(virtualpath, localpath)
             
         body += "<hr>"
 
@@ -453,29 +484,21 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
 def parse_command_line():
     """ Parse command line option subroutine """
-    global OPT_ROOT_DIR, OPT_PORT, PREFIX
+    global OPT_PORT, PREFIX
     
     parser = argparse.ArgumentParser(
             description="Share your files across the Internet.")
-    parser.add_argument('path', type=str,
-                        help="the root directory to be shared")
+    parser.add_argument('file', type=str, nargs="+",
+                        help="file to be shared")
     parser.add_argument('-p', '--port', type=int, default=OPT_PORT,
                         help="the port to listen on")
     
     args = parser.parse_args()
     
-    OPT_ROOT_DIR = args.path
+    for f in args.file:
+        if os.path.exists(f): # TODO: deal with duplicate filenames and files.
+            add_shared_file(key=os.path.basename(f), path=f)
     OPT_PORT = args.port
-    
-    if OPT_ROOT_DIR.endswith('/'):
-        OPT_ROOT_DIR = OPT_ROOT_DIR[0:len(OPT_ROOT_DIR)-1] # strip trailing '/'
-    if len(OPT_ROOT_DIR) == 0:
-        OPT_ROOT_DIR = "/"
-        print("Warning: You have shared the entire filesystem.")
-    
-    if not is_dir(OPT_ROOT_DIR, AllowLink=True):
-        print("Error: Root directory does not exist.\n")
-        exit(-1)
     
     if not PREFIX.startswith('/'):
         PREFIX = '/' + PREFIX
@@ -509,5 +532,6 @@ def server_main():
 
 if __name__ == "__main__":
     parse_command_line()
+    print("PREFIX="+PREFIX)
     server_main()
 
