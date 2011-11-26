@@ -405,13 +405,12 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         body = ""
 
         if virtualpath == "/":
-            fileList = get_shared_files() # list virtual filesystem root
+            fileList = sorted(get_shared_files()) # list virtual filesystem root
             is_root = True
         else:
             fileList = sorted(os.listdir(localpath))
             is_root = False
         
-        print("fileList=",fileList)
         body += "<table>"
         
         # table title
