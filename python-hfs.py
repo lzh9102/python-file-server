@@ -359,7 +359,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content)
             
-    def send_file(self, filename, RateLimit=0):
+    def send_file(self, filename, RateLimit=0, AllowCache=False):
         """ Read the file and send it to the client.
             If the function succeeds, it returns the file size in bytes. """
         self.send_response(HTTP_OK)
@@ -371,7 +371,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                          {"TYPE": type, "ENCODING": encoding})
         self.send_header("Content-Length", str(filesize))
         self.send_header("Last-Modified", last_modified)
-        self.send_no_cache_header()
+        if not AllowCache:
+            self.send_no_cache_header()
         self.end_headers()
         
         if RateLimit == 0:
