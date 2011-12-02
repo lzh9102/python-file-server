@@ -17,6 +17,7 @@ import posixpath
 import locale
 import argparse
 import tarfile
+import uuid
 
 ###### Options and default values ######
 
@@ -35,7 +36,8 @@ OPT_RATE_LIMIT = 1024 * 1024 * 10
 # the prefix to add before the root directory
 # For example, if PREFIX is "/root" and the host is 127.0.0.1, then
 # the root directory is http://127.0.0.1/root
-PREFIX = "/"
+PREFIX = "/files"
+DOWNLOAD_TAR_PREFIX = "/download_tar"
 
 # The list of files appearing in the root of the virtual filesystem.
 # TODO: Implement locking to protect concurrent access.
@@ -62,6 +64,21 @@ def remove_shared_file(key):
 
 def get_shared_files():
     return SHARED_FILES.keys()
+
+DOWNLOAD_UUID = {} # map from uuid to filelist
+DOWNLOAD_UUID_LOCK = threading.Lock()
+def push_download(fileList, uuid):
+    with DOWNLOAD_UUID_LOCK:
+        DOWNLOAD_UUID[uuid] = fileList
+    
+def pop_download(uuid):
+    with DOWNLOAD_UUID_LOCK:
+        if uuid in DOWNLOAD_UUID: # return and remove the download request
+            fileList = DOWNLOAD_UUID[uuid]
+            DOWNLOAD_UUID.pop(uuid)
+            return fileList
+        else:
+            return []
 
 ###### Helper Functions ######
 
@@ -290,7 +307,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             if path == "/" or is_dir(localpath, AllowLink=allow_link):
                 """ Handle directory listing. """
                 DEBUG("List Dir: " + localpath)
-                content = self.generate_folder_listing(path, localpath)
+                is_download_mode = (self.get_param("dlmode") == "1")
+                content = self.generate_folder_listing(path, localpath, is_download_mode)
                 self.send_html(content)
                 
             elif is_file(localpath):
@@ -323,9 +341,31 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 
         elif path == "/": # redirect '/' to /PREFIX
             self.send_html(generate_redirect_html(PREFIX))
-            
+        elif path == DOWNLOAD_TAR_PREFIX:
+            self.send_tar_download(self.get_param("id"))
         else: # data file
             self.send_response(HTTP_NOTFOUND, "Not Found")
+            
+    def do_POST(self):
+        self.parse_params()
+        
+        if self.path == DOWNLOAD_TAR_PREFIX:
+            clength = int(self.headers.dict['content-length'])
+            content = urllib.unquote_plus(self.rfile.read(clength))
+            fileList = []
+            
+            for pair in content.split("&"):
+                try:
+                    key, value = pair.split("=")
+                except Exception:
+                    key, value = (pair, "")
+                if key == "chkfiles[]":
+                    fileList.append(value)
+        
+            retrieve_code = str(uuid.uuid4())
+            push_download(fileList, retrieve_code)
+            self.send_html(
+                generate_redirect_html(DOWNLOAD_TAR_PREFIX + "?id=" + retrieve_code))
             
     def get_local_path(self, path):
         """ Translate a filename separated by "/" to the local file path. """
@@ -418,6 +458,19 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 DEBUG("send_tar: add file " + localpath + " as " + name)
                 tar.add(localpath, name)
                 
+    def send_tar_download(self, id, ArchiveName=None):
+        if id == None:
+            return
+        if ArchiveName == None:
+            ArchiveName = "archive.tar.gz"
+
+        fileList = pop_download(id)
+        
+        if len(fileList) != 0:
+            self.send_tar(fileList, ArchiveName, OPT_RATE_LIMIT)
+        else:
+            self.send_html(generate_file_not_found_html(str("download " + id)))
+                
     def send_no_cache_header(self):
         """ Send HTTP header to prevent browser caching. """
         self.send_header("Cache-Control", "no-cache, must-revalidate")
@@ -460,7 +513,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         result += "</tr>"
         return result
                 
-    def list_files(self, virtualpath, localpath):
+    def list_files(self, virtualpath, localpath, ShowCheckbox=False):
         """ List all the files in html. """
         i = 1 # this index is used to decide the color of a row
         body = ""
@@ -478,27 +531,34 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         body += self.generate_table_row(-1, "File", "Size", "Last Modified")
         body += self.generate_table_row(-1, "", "", "")
         
-        # generate "." directory
-        body += self.generate_table_row(i, \
-            "(DIR) " + self.generate_link(virtualpath, ".") \
-            , "", "")
-        i += 1
-        
         # list subfolders
         for f in fileList:
+            if ShowCheckbox:
+                chkbox_html = "<input type='checkbox' name='chkfiles[]' value='%s'>" \
+                    % (concat_folder_file(virtualpath, f))
+            else:
+                chkbox_html = ""
+                
             local_filename = (get_shared_file(f) if is_root else concat_folder_file(localpath, f))
+            
             if is_dir(local_filename, AllowLink=(OPT_FOLLOW_LINK or is_root)):
-                body += self.generate_table_row(i, "(DIR) " + \
+                body += self.generate_table_row(i, chkbox_html + "(DIR) " + \
                     self.generate_link(concat_folder_file(virtualpath, f)) \
                     , "", "")
                 i += 1
         
         # list files
         for f in fileList:
+            if ShowCheckbox:
+                chkbox_html = "<input type='checkbox' name='chkfiles[]' value='%s'>" \
+                    % (concat_folder_file(virtualpath, f))
+            else:
+                chkbox_html = ""
+            
             local_filename = (get_shared_file(f) if is_root else concat_folder_file(localpath, f))
             if is_file(local_filename): # is file
                 last_modified = self.date_time_string(os.path.getmtime(local_filename))
-                body += self.generate_table_row(i, \
+                body += self.generate_table_row(i, chkbox_html + \
                     self.generate_link(concat_folder_file(virtualpath, f)) \
                     , human_readable_size(os.path.getsize(local_filename))
                     , last_modified)
@@ -508,18 +568,28 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                               
         return body
 
-    def generate_folder_listing(self, virtualpath, localpath):
+    def generate_folder_listing(self, virtualpath, localpath, DownloadMode=False):
         """ Generate the file listing HTML for a folder. """
+                
+        sep = "&nbsp;&nbsp;&nbsp;"
+
+        body = "<form name='frmfiles' action='%s' method='POST'>" \
+                % (DOWNLOAD_TAR_PREFIX)
+                
+        if DownloadMode: # Show download button
+            body += "<input type='submit' name='download_tar' value='Download Tar'/><br>"
+        else:   # Show navigation links and current path.
+            body += self.generate_parent_link(virtualpath) + sep + \
+                self.generate_home_link() + "<br>"
         
-        body = self.generate_parent_link(virtualpath) + "&nbsp;&nbsp;&nbsp" + \
-               self.generate_home_link() + "<br>" + \
-               virtualpath + "<hr>"
+        body += virtualpath + "<hr>"
         
         allow_link = (OPT_FOLLOW_LINK or strip_suffix(virtualpath) == "/")
         if len(localpath) == 0 or is_dir(localpath, AllowLink=allow_link):
-            body += self.list_files(virtualpath, localpath)
+            body += self.list_files(virtualpath, localpath, ShowCheckbox=DownloadMode)
             
         body += "<hr>"
+        body += "</form>"
 
         return generate_folder_listing_html(body)
     
@@ -527,7 +597,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         if key in self.__params:
             return self.__params[key]
         else:
-            return ""
+            return None
     
     def parse_params(self):
         """ Parse the parameters from url and request body """
@@ -540,8 +610,12 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.path, qs = self.path.split("?", 1)
 
             for pair in qs.split("&"):
-                key, value = pair.split("=")
+                try:
+                    key, value = pair.split("=")
+                except Exception:
+                    key, value = (pair, "")
                 self.__params[key] = value
+
 
 def parse_command_line():
     """ Parse command line option subroutine """
