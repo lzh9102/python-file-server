@@ -248,13 +248,15 @@ def generate_folder_listing_html(body):
 REDIRECT_TEMPLATE = """
 <html class="html">
     <head>
-    <meta http-equiv="Refresh" content="0; url=%(ROOT)s" />
+    <meta http-equiv="Refresh" content="0; url=%(TARGET)s" />
     </head>
-    <body><a href="%(ROOT)s">%(ROOT)s</a></body>
+    <body>%(BODY)s</body>
 </html>
 """
-def generate_redirect_html(url):
-    return REDIRECT_TEMPLATE % {"ROOT": url}
+def generate_redirect_html(url, body=None):
+    if body == None:
+        body = "redirect: <a href='%(TARGET)s'>%(TARGET)s</a>" % {"TARGET": url}
+    return REDIRECT_TEMPLATE % {"TARGET": url, "BODY": body}
 
 FILE_NOT_FOUND_TEMPLATE = """
 <html class="html">
@@ -361,11 +363,17 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     key, value = (pair, "")
                 if key == "chkfiles[]":
                     fileList.append(value)
+                    
+            if self.get_param("r") != None:
+                redirect_html_body = "<a href='%s'>Back</a>" % (self.get_param('r'))
+            else:
+                redirect_html_body = "File Download" 
         
             retrieve_code = str(uuid.uuid4())
             push_download(fileList, retrieve_code)
             self.send_html(
-                generate_redirect_html(DOWNLOAD_TAR_PREFIX + "?id=" + retrieve_code))
+                generate_redirect_html(DOWNLOAD_TAR_PREFIX + "?id=" + retrieve_code
+                                       , body=redirect_html_body))
             
     def get_local_path(self, path):
         """ Translate a filename separated by "/" to the local file path. """
@@ -573,8 +581,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 
         sep = "&nbsp;&nbsp;&nbsp;"
 
-        body = "<form name='frmfiles' action='%s' method='POST'>" \
-                % (DOWNLOAD_TAR_PREFIX)
+        body = "<form name='frmfiles' action='%s?r=%s' method='POST'>" \
+                % (DOWNLOAD_TAR_PREFIX, PREFIX + virtualpath)
                 
         if DownloadMode: # Show download button
             body += "<input type='submit' name='download_tar' value='Download Tar'/><br>"
