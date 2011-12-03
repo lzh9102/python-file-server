@@ -667,9 +667,9 @@ def parse_command_line():
                         help="file or directory to be shared")
     parser.add_argument('-p', '--port', type=int, default=OPT_PORT,
                         help="the port to listen on")
-    parser.add_argument('-f', '--follow-link', action="store_true", default=False,
+    parser.add_argument('-f', '--follow-link', action="store_true", default=OPT_FOLLOW_LINK,
                         help="follow symbolic links when listing files; disabled by default")
-    parser.add_argument('-a', '--enable-tar', action="store_true", default=False,
+    parser.add_argument('-a', '--enable-tar', action="store_true", default=OPT_ALLOW_DOWNLOAD_TAR,
                         help="enable remote user to download mutiple files at once in a tar archive")
     
     args = parser.parse_args()
