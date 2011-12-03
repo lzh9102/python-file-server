@@ -365,7 +365,23 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     fileList.append(value)
                     
             if self.get_param("r") != None:
-                redirect_html_body = "<a href='%s'>Back</a>" % (self.get_param('r'))
+                redirect_html_body = """
+                <a href='%(DIR)s'>Back</a>
+                <script language='javascript'>
+                //<!--
+                    document.write("<label id='txtTime'></label>")
+                    function countdown(sec) {
+                        if (sec > 0) {
+                            txtTime.innerHTML = "(" + sec + ")"
+                            setTimeout("countdown("+(sec-1).toString()+")", 1000);
+                        } else { // timeup
+                            window.location="%(DIR)s"
+                        }
+                    }
+                    countdown(3)
+                //-->
+                </script>
+                """ % {"DIR": self.get_param('r')}
             else:
                 redirect_html_body = "File Download" 
         
