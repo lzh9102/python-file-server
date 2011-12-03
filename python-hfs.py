@@ -33,6 +33,9 @@ OPT_FOLLOW_LINK = False
 # file transmission rate limit in bytes
 OPT_RATE_LIMIT = 1024 * 1024 * 10
 
+# whether to allow downloading as archive
+OPT_ALLOW_DOWNLOAD_TAR = False
+
 # the prefix to add before the root directory
 # For example, if PREFIX is "/root" and the host is 127.0.0.1, then
 # the root directory is http://127.0.0.1/root
@@ -309,7 +312,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             if path == "/" or is_dir(localpath, AllowLink=allow_link):
                 """ Handle directory listing. """
                 DEBUG("List Dir: " + localpath)
-                is_download_mode = (self.get_param("dlmode") == "1")
+                is_download_mode = OPT_ALLOW_DOWNLOAD_TAR and (self.get_param("dlmode") == "1")
                 content = self.generate_folder_listing(path, localpath, is_download_mode)
                 self.send_html(content)
                 
@@ -343,7 +346,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 
         elif path == "/": # redirect '/' to /PREFIX
             self.send_html(generate_redirect_html(PREFIX))
-        elif path == DOWNLOAD_TAR_PREFIX:
+        elif OPT_ALLOW_DOWNLOAD_TAR and path == DOWNLOAD_TAR_PREFIX:
             self.send_tar_download(self.get_param("id"))
         else: # data file
             self.send_response(HTTP_NOTFOUND, "Not Found")
@@ -351,9 +354,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         self.parse_params()
         
-        if self.path == DOWNLOAD_TAR_PREFIX:
+        if OPT_ALLOW_DOWNLOAD_TAR and self.path == DOWNLOAD_TAR_PREFIX:
             clength = int(self.headers.dict['content-length'])
             content = urllib.unquote_plus(self.rfile.read(clength))
+            virtualpath = self.get_param("r")
             fileList = []
             
             for pair in content.split("&"):
@@ -364,7 +368,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 if key == "chkfiles[]":
                     fileList.append(value)
                     
-            if self.get_param("r") != None:
+            if virtualpath != None:
                 redirect_html_body = """
                 <a href='%(DIR)s'>Back</a>
                 <script language='javascript'>
@@ -381,15 +385,19 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     countdown(3)
                 //-->
                 </script>
-                """ % {"DIR": self.get_param('r')}
+                """ % {"DIR": virtualpath}
             else:
+                virtualpath = ""
                 redirect_html_body = "File Download" 
         
-            retrieve_code = str(uuid.uuid4())
-            push_download(fileList, retrieve_code)
-            self.send_html(
-                generate_redirect_html(DOWNLOAD_TAR_PREFIX + "?id=" + retrieve_code
-                                       , body=redirect_html_body))
+            if len(fileList) != 0:
+                retrieve_code = str(uuid.uuid4())
+                push_download(fileList, retrieve_code)
+                self.send_html(
+                    generate_redirect_html(DOWNLOAD_TAR_PREFIX + "?id=" + retrieve_code
+                                           , body=redirect_html_body))
+            else:
+                self.send_html(generate_redirect_html(virtualpath))
             
     def get_local_path(self, path):
         """ Translate a filename separated by "/" to the local file path. """
@@ -514,6 +522,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         """ Generate link for root directory """
         link = ("/" if len(PREFIX) == 0 else PREFIX)
         return "<a href='" + link + "'>Home</a>"
+    
+    def generate_dlmode_link(self, virtualpath):
+        link = PREFIX + virtualpath + "?dlmode=1"
+        return "<a href='" + link + "'>Download Multiple Files</a>"
             
     def generate_link(self, virtualpath, text=None):
         """ Generate html link for a file/folder. """
@@ -601,10 +613,14 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 % (DOWNLOAD_TAR_PREFIX, PREFIX + virtualpath)
                 
         if DownloadMode: # Show download button
-            body += "<input type='submit' name='download_tar' value='Download Tar'/><br>"
+            body += "<input type='submit' name='download_tar' value='Download Tar'/>"
+            body += sep + "<a href='%s'>Back</a>" % (PREFIX + virtualpath) + "<br>"
         else:   # Show navigation links and current path.
             body += self.generate_parent_link(virtualpath) + sep + \
-                self.generate_home_link() + "<br>"
+                self.generate_home_link()
+            if OPT_ALLOW_DOWNLOAD_TAR:
+                body += sep + self.generate_dlmode_link(virtualpath)
+            body += "<br>"
         
         body += virtualpath + "<hr>"
         
@@ -643,7 +659,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
 def parse_command_line():
     """ Parse command line option subroutine """
-    global OPT_PORT, OPT_FOLLOW_LINK, PREFIX
+    global OPT_PORT, OPT_FOLLOW_LINK, PREFIX, OPT_ALLOW_DOWNLOAD_TAR
     
     parser = argparse.ArgumentParser(
             description="Share your files across the Internet.")
@@ -652,7 +668,9 @@ def parse_command_line():
     parser.add_argument('-p', '--port', type=int, default=OPT_PORT,
                         help="the port to listen on")
     parser.add_argument('-f', '--follow-link', action="store_true", default=False,
-                        help="whether to follow symbolic links; disabled by default")
+                        help="follow symbolic links when listing files; disabled by default")
+    parser.add_argument('-a', '--enable-tar', action="store_true", default=False,
+                        help="enable remote user to download mutiple files at once in a tar archive")
     
     args = parser.parse_args()
     
@@ -662,6 +680,7 @@ def parse_command_line():
             add_shared_file(key=os.path.basename(abspath), path=abspath)
     OPT_PORT = args.port
     OPT_FOLLOW_LINK = args.follow_link
+    OPT_ALLOW_DOWNLOAD_TAR = args.enable_tar
     
     if not PREFIX.startswith('/'):
         PREFIX = '/' + PREFIX
