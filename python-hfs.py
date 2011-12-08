@@ -328,17 +328,17 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     size = self.send_file(localpath, RateLimit=OPT_RATE_LIMIT)
                     seconds = time.time() - t0
                     
+                    hrs = human_readable_size; # abbreviate the function
                     if seconds > 1:
                         download_rate = "(%s/sec)" % (hrs(float(size)/seconds))
                     else:
                         download_rate = ""
                     
-                    hrs = human_readable_size; # abbreviate the function
                     WRITE_LOG("Fully Downloaded %s - %s @ %d sec %s"
                         % (path, hrs(size), seconds, download_rate), client)
-                except Exception:
+                except Exception, e:
                     WRITE_LOG("Downloading Failed: %s" % (path), client)
-                    DEBUG("Downloading Failed: " + localpath)
+                    DEBUG("Downloading Failed: " + localpath + " (" + e.message + ")")
                 
             else:
                 """ Handle File Not Found error. """
