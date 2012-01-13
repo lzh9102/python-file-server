@@ -19,69 +19,7 @@ import argparse
 import tarfile
 import uuid
 
-###### Options and default values ######
-
-# the port to listen on
-OPT_PORT = 80
-
-# the number of bytes to read in a chunk when reading a file
-OPT_CHUNK_SIZE = 1024
-
-# whether to follow symlink folders
-OPT_FOLLOW_LINK = False
-
-# file transmission rate limit in bytes
-OPT_RATE_LIMIT = 1024 * 1024 * 10
-
-# whether to allow downloading as archive
-OPT_ALLOW_DOWNLOAD_TAR = False
-
-# the prefix to add before the root directory
-# For example, if PREFIX is "/root" and the host is 127.0.0.1, then
-# the root directory is http://127.0.0.1/root
-PREFIX = "/files"
-DOWNLOAD_TAR_PREFIX = "/download_tar"
-
-# The list of files appearing in the root of the virtual filesystem.
-# TODO: Implement locking to protect concurrent access.
-SHARED_FILES = {}
-def add_shared_file(key, path):
-    final_key = key
-    index = 2
-    while SHARED_FILES.has_key(final_key): # Append an index if the filename alreaady exists.
-        final_key = "%s (%d)" % (key, index)
-        index += 1
-    SHARED_FILES[final_key] = path
-    
-def get_shared_file(key):
-    if key not in SHARED_FILES:
-        return ""
-    else:
-        return SHARED_FILES[key]
-
-def remove_shared_file(key):
-    try:
-        SHARED_FILES.pop(key)
-    except Exception:
-        pass
-
-def get_shared_files():
-    return SHARED_FILES.keys()
-
-DOWNLOAD_UUID = {} # map from uuid to filelist
-DOWNLOAD_UUID_LOCK = threading.Lock()
-def push_download(fileList, uuid):
-    with DOWNLOAD_UUID_LOCK:
-        DOWNLOAD_UUID[uuid] = fileList
-    
-def pop_download(uuid):
-    with DOWNLOAD_UUID_LOCK:
-        if uuid in DOWNLOAD_UUID: # return and remove the download request
-            fileList = DOWNLOAD_UUID[uuid]
-            DOWNLOAD_UUID.pop(uuid)
-            return fileList
-        else:
-            return []
+TRANSMIT_CHUNK_SIZE = 1024
 
 ###### Helper Functions ######
 
@@ -216,11 +154,11 @@ class RateLimitingWriter:
         nleft = length
         index = 0
         while nleft > 0:
-            end = index + OPT_CHUNK_SIZE
+            end = index + TRANSMIT_CHUNK_SIZE
             end = (length if end > length else end)
             self.__file.write(data[index:end])
-            nleft -= OPT_CHUNK_SIZE
-            index += OPT_CHUNK_SIZE
+            nleft -= TRANSMIT_CHUNK_SIZE
+            index += TRANSMIT_CHUNK_SIZE
             self.__limiter.limit()
 
 __system_encoding = locale.getdefaultlocale()[1]
@@ -280,13 +218,77 @@ HTTP_NOCONTENT = 204
 HTTP_NOTFOUND = 404
 HTTP_MOVED_PERMANENTLY = 301
 
-class ThreadedHttpServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
-    """ This class combines two classes ThreadingMixIn and BaseHTTPServer.HTTPServer
-        to create a multi-threaded server that can handle multiple connections simultaneously. """
-    pass
+class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
+    
+    def __init__(self, server_address, RequestHandlerClass):
+        BaseHTTPServer.HTTPServer.__init__(self, server_address, RequestHandlerClass)
+        ###### Options and default values ######
+
+        # whether to follow symlink folders
+        self.OPT_FOLLOW_LINK = False
+        
+        # file transmission rate limit in bytes
+        self.OPT_RATE_LIMIT = 1024 * 1024 * 10
+        
+        # whether to allow downloading as archive
+        self.OPT_ALLOW_DOWNLOAD_TAR = False
+        
+        # the prefix to add before the root directory
+        # For example, if PREFIX is "/root" and the host is 127.0.0.1, then
+        # the root directory is http://127.0.0.1/root
+        self.PREFIX = "/files"
+        self.DOWNLOAD_TAR_PREFIX = "/download_tar"
+        
+        # The list of files appearing in the root of the virtual filesystem.
+        # TODO: Implement locking to protect concurrent access.
+        self.SHARED_FILES = {}
+        
+        self.DOWNLOAD_UUID = {} # map from uuid to filelist
+        self.DOWNLOAD_UUID_LOCK = threading.Lock()
+        
+    def add_shared_file(self, key, path):
+        final_key = key
+        index = 2
+        while self.SHARED_FILES.has_key(final_key): # Append an index if the filename alreaady exists.
+            final_key = "%s (%d)" % (key, index)
+            index += 1
+        self.SHARED_FILES[final_key] = path
+        
+    def get_shared_file(self, key):
+        if key not in self.SHARED_FILES:
+            return ""
+        else:
+            return self.SHARED_FILES[key]
+    
+    def remove_shared_file(self, key):
+        try:
+            self.SHARED_FILES.pop(key)
+        except Exception:
+            pass
+    
+    def get_shared_files(self):
+        return self.SHARED_FILES.keys()
+    
+
+    def push_download(self, fileList, uuid):
+        with self.DOWNLOAD_UUID_LOCK:
+            self.DOWNLOAD_UUID[uuid] = fileList
+        
+    def pop_download(self, uuid):
+        with self.DOWNLOAD_UUID_LOCK:
+            if uuid in self.DOWNLOAD_UUID: # return and remove the download request
+                fileList = self.DOWNLOAD_UUID[uuid]
+                self.DOWNLOAD_UUID.pop(uuid)
+                return fileList
+            else:
+                return []
 
 class MyServiceHandler(SimpleHTTPRequestHandler):
     """ This class provides HTTP service to the client """
+    
+    def __init__(self, request, client_address, server):
+        SimpleHTTPRequestHandler.__init__(self, request, client_address, server)
+
     def log_message(self, format, *args):
         DEBUG("HTTP Server: " + (format % args))
         
@@ -299,20 +301,20 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.parse_params()
         path = path.split("?")[0] # strip arguments from path
         
-        if len(PREFIX) == 0 or prefix(path) == PREFIX:
+        if len(self.server.PREFIX) == 0 or prefix(path) == self.server.PREFIX:
             """ Handle Virtual Filesystem """
-            # strip path with PREFIX
-            if len(PREFIX) != 0:
+            # strip path with self.server.PREFIX
+            if len(self.server.PREFIX) != 0:
                 path = strip_prefix(path)
             
             localpath = self.get_local_path(path)
             DEBUG("localpath: " + localpath)
             
-            allow_link = (OPT_FOLLOW_LINK or strip_suffix(path) == "/")
+            allow_link = (self.server.OPT_FOLLOW_LINK or strip_suffix(path) == "/")
             if path == "/" or is_dir(localpath, AllowLink=allow_link):
                 """ Handle directory listing. """
                 DEBUG("List Dir: " + localpath)
-                is_download_mode = OPT_ALLOW_DOWNLOAD_TAR and (self.get_param("dlmode") == "1")
+                is_download_mode = self.server.OPT_ALLOW_DOWNLOAD_TAR and (self.get_param("dlmode") == "1")
                 content = self.generate_folder_listing(path, localpath, is_download_mode)
                 self.send_html(content)
                 
@@ -325,7 +327,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     WRITE_LOG("Start Downloading %s" % (path), client)
                     
                     t0 = time.time()
-                    size = self.send_file(localpath, RateLimit=OPT_RATE_LIMIT)
+                    size = self.send_file(localpath, RateLimit=self.server.OPT_RATE_LIMIT)
                     seconds = time.time() - t0
                     
                     hrs = human_readable_size; # abbreviate the function
@@ -344,9 +346,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 """ Handle File Not Found error. """
                 self.send_html(generate_file_not_found_html(path))
                 
-        elif path == "/": # redirect '/' to /PREFIX
-            self.send_html(generate_redirect_html(PREFIX))
-        elif OPT_ALLOW_DOWNLOAD_TAR and path == DOWNLOAD_TAR_PREFIX:
+        elif path == "/": # redirect '/' to /self.server.PREFIX
+            self.send_html(generate_redirect_html(self.server.PREFIX))
+        elif self.server.OPT_ALLOW_DOWNLOAD_TAR and path == self.server.DOWNLOAD_TAR_PREFIX:
             self.send_tar_download(self.get_param("id"))
         else: # data file
             self.send_response(HTTP_NOTFOUND, "Not Found")
@@ -354,7 +356,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         self.parse_params()
         
-        if OPT_ALLOW_DOWNLOAD_TAR and self.path == DOWNLOAD_TAR_PREFIX:
+        if self.server.OPT_ALLOW_DOWNLOAD_TAR and self.path == self.server.DOWNLOAD_TAR_PREFIX:
             clength = int(self.headers.dict['content-length'])
             content = urllib.unquote_plus(self.rfile.read(clength))
             virtualpath = self.get_param("r")
@@ -392,9 +394,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
             if len(fileList) != 0:
                 retrieve_code = str(uuid.uuid4())
-                push_download(fileList, retrieve_code)
+                self.server.push_download(fileList, retrieve_code)
                 self.send_html(
-                    generate_redirect_html(DOWNLOAD_TAR_PREFIX + "?id=" + retrieve_code
+                    generate_redirect_html(self.server.DOWNLOAD_TAR_PREFIX + "?id=" + retrieve_code
                                            , body=redirect_html_body))
             else:
                 self.send_html(generate_redirect_html(virtualpath))
@@ -408,7 +410,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         if len(wordList) == 0:
             return ""
         
-        root = get_shared_file(wordList[0])
+        root = self.server.get_shared_file(wordList[0])
         if root == "":
             return ""
         wordList = wordList[1:]
@@ -450,13 +452,13 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         if RateLimit == 0:
             rate_limit = 0 # no limit
         else:
-            rate_limit = float(RateLimit) / OPT_CHUNK_SIZE
+            rate_limit = float(RateLimit) / TRANSMIT_CHUNK_SIZE
             
         writer = RateLimitingWriter(self.wfile, rate_limit)
         
         with open(filename, "rb") as f:
             while 1:
-                chunk = f.read(OPT_CHUNK_SIZE)
+                chunk = f.read(TRANSMIT_CHUNK_SIZE)
                 if chunk:
                     writer.write(chunk)
                 else:
@@ -479,7 +481,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         if RateLimit == 0:
             rate_limit = 0 # no limit
         else:
-            rate_limit = float(RateLimit) / OPT_CHUNK_SIZE
+            rate_limit = float(RateLimit) / TRANSMIT_CHUNK_SIZE
         
         writer = RateLimitingWriter(self.wfile, rate_limit)
         
@@ -496,10 +498,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         if ArchiveName == None:
             ArchiveName = "archive.tar.gz"
 
-        fileList = pop_download(id)
+        fileList = self.server.pop_download(id)
         
         if len(fileList) != 0:
-            self.send_tar(fileList, ArchiveName, OPT_RATE_LIMIT)
+            self.send_tar(fileList, ArchiveName, self.server.OPT_RATE_LIMIT)
         else:
             self.send_html(generate_file_not_found_html(str("download " + id)))
                 
@@ -515,22 +517,22 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
         parent_dir = strip_suffix(folder)
         
-        return "<a href='" + urllib.quote(PREFIX + parent_dir) + "'>Up</a>"
+        return "<a href='" + urllib.quote(self.server.PREFIX + parent_dir) + "'>Up</a>"
             
     
     def generate_home_link(self):
         """ Generate link for root directory """
-        link = ("/" if len(PREFIX) == 0 else PREFIX)
+        link = ("/" if len(self.server.PREFIX) == 0 else self.server.PREFIX)
         return "<a href='" + link + "'>Home</a>"
     
     def generate_dlmode_link(self, virtualpath):
-        link = PREFIX + virtualpath + "?dlmode=1"
+        link = self.server.PREFIX + virtualpath + "?dlmode=1"
         return "<a href='" + link + "'>Download Multiple Files</a>"
             
     def generate_link(self, virtualpath, text=None):
         """ Generate html link for a file/folder. """
         text = (suffix(virtualpath) if text == None else text)
-        link = PREFIX + virtualpath
+        link = self.server.PREFIX + virtualpath
         link = (link[0:len(link)-1] if link.endswith('/') else link) # strip trailing '/'
         return "<a href='%(LINK)s'>%(NAME)s</a> " % \
             {"LINK": urllib.quote(link), "NAME": cgi.escape(text)}
@@ -555,7 +557,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         body = ""
 
         if virtualpath == "/":
-            fileList = sorted(get_shared_files()) # list virtual filesystem root
+            fileList = sorted(self.server.get_shared_files()) # list virtual filesystem root
             is_root = True
         else:
             fileList = sorted(os.listdir(localpath))
@@ -575,9 +577,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             else:
                 chkbox_html = ""
                 
-            local_filename = (get_shared_file(f) if is_root else concat_folder_file(localpath, f))
+            local_filename = (self.server.get_shared_file(f) if is_root else concat_folder_file(localpath, f))
             
-            if is_dir(local_filename, AllowLink=(OPT_FOLLOW_LINK or is_root)):
+            if is_dir(local_filename, AllowLink=(self.server.OPT_FOLLOW_LINK or is_root)):
                 body += self.generate_table_row(i, chkbox_html + "(DIR) " + \
                     self.generate_link(concat_folder_file(virtualpath, f)) \
                     , "", "")
@@ -591,7 +593,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             else:
                 chkbox_html = ""
             
-            local_filename = (get_shared_file(f) if is_root else concat_folder_file(localpath, f))
+            local_filename = (self.server.get_shared_file(f) if is_root else concat_folder_file(localpath, f))
             if is_file(local_filename): # is file
                 last_modified = self.date_time_string(os.path.getmtime(local_filename))
                 body += self.generate_table_row(i, chkbox_html + \
@@ -610,21 +612,21 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         sep = "&nbsp;&nbsp;&nbsp;"
 
         body = "<form name='frmfiles' action='%s?r=%s' method='POST'>" \
-                % (DOWNLOAD_TAR_PREFIX, PREFIX + virtualpath)
+                % (self.server.DOWNLOAD_TAR_PREFIX, self.server.PREFIX + virtualpath)
                 
         if DownloadMode: # Show download button
             body += "<input type='submit' name='download_tar' value='Download Tar'/>"
-            body += sep + "<a href='%s'>Back</a>" % (PREFIX + virtualpath) + "<br>"
+            body += sep + "<a href='%s'>Back</a>" % (self.server.PREFIX + virtualpath) + "<br>"
         else:   # Show navigation links and current path.
             body += self.generate_parent_link(virtualpath) + sep + \
                 self.generate_home_link()
-            if OPT_ALLOW_DOWNLOAD_TAR:
+            if self.server.OPT_ALLOW_DOWNLOAD_TAR:
                 body += sep + self.generate_dlmode_link(virtualpath)
             body += "<br>"
         
         body += virtualpath + "<hr>"
         
-        allow_link = (OPT_FOLLOW_LINK or strip_suffix(virtualpath) == "/")
+        allow_link = (self.server.OPT_FOLLOW_LINK or strip_suffix(virtualpath) == "/")
         if len(localpath) == 0 or is_dir(localpath, AllowLink=allow_link):
             body += self.list_files(virtualpath, localpath, ShowCheckbox=DownloadMode)
             
@@ -656,10 +658,12 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     key, value = (pair, "")
                 self.__params[key] = value
 
-
-def parse_command_line():
-    """ Parse command line option subroutine """
-    global OPT_PORT, OPT_FOLLOW_LINK, PREFIX, OPT_ALLOW_DOWNLOAD_TAR
+if __name__ == "__main__":
+    """ Parse command line option """
+    OPT_PORT = 80
+    OPT_FOLLOW_LINK = False
+    PREFIX = "file/"
+    OPT_ALLOW_DOWNLOAD_TAR = False
     
     parser = argparse.ArgumentParser(
             description="Share your files across the Internet.")
@@ -674,25 +678,28 @@ def parse_command_line():
     
     args = parser.parse_args()
     
-    for f in args.file:
-        if os.path.exists(f): # TODO: deal with duplicate filenames and files.
-            abspath = os.path.abspath(f)
-            add_shared_file(key=os.path.basename(abspath), path=abspath)
+    FILES = args.file
     OPT_PORT = args.port
     OPT_FOLLOW_LINK = args.follow_link
     OPT_ALLOW_DOWNLOAD_TAR = args.enable_tar
-    
     if not PREFIX.startswith('/'):
         PREFIX = '/' + PREFIX
     if PREFIX.endswith('/'):
         PREFIX = PREFIX[0:len(PREFIX)-1]
     
-###### Server Main Function ######
-def server_main():
-    """ The server main function """
+    """ server """
     try:
-        server = ThreadedHttpServer(('', OPT_PORT), MyServiceHandler)
+        server = HttpFileServer(('', OPT_PORT), MyServiceHandler)
         server.daemon_threads = True
+        
+        for f in FILES:
+            if os.path.exists(f): # TODO: deal with duplicate filenames and files.
+                abspath = os.path.abspath(f)
+                server.add_shared_file(key=os.path.basename(abspath), path=abspath)
+        
+        server.OPT_FOLLOW_LINK = OPT_FOLLOW_LINK
+        server.OPT_ALLOW_DOWNLOAD_TAR = OPT_ALLOW_DOWNLOAD_TAR
+        server.PREFIX = PREFIX
         
         WRITE_LOG("Server Started")
         DEBUG("System Language: " + locale.getdefaultlocale()[0])
@@ -710,9 +717,3 @@ def server_main():
             DEBUG(e)
     except KeyboardInterrupt:
         sys.stderr.write("Server Terminated\n")
-    pass
-
-if __name__ == "__main__":
-    parse_command_line()
-    server_main()
-
