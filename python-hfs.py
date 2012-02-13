@@ -18,8 +18,11 @@ import locale
 import argparse
 import tarfile
 import uuid
+import re
+from datetime import datetime
 
 TRANSMIT_CHUNK_SIZE = 1024
+RECEIVE_CHUNK_SIZE = 1024
 
 ###### Helper Functions ######
 
@@ -91,6 +94,14 @@ def human_readable_size(nsize):
     if nsize > K:
         return "%(SIZE).1f KiB" % {"SIZE": float(nsize) / K}
     return str(nsize) + " B"
+
+def multipart_boundary_length(content_type):
+    """ Parse the content-type field and return the boundary length. """
+    match = re.search(r'boundary=(--*[0-9a-z][0-9a-z]*)', content_type, re.I)
+    if match:
+        return len(match.group(1))
+    else:
+        return 0
 
 def WRITE_LOG(message, client=None):
     t = time.localtime()
@@ -212,6 +223,149 @@ FILE_NOT_FOUND_TEMPLATE = """
 def generate_file_not_found_html(file):
     return FILE_NOT_FOUND_TEMPLATE % {"FILE": file}
 
+UPLOAD_TEMPLATE = """
+<html class="html">
+    <head>
+    <title>Uploading</title>
+    <script language="javascript">
+    var prog_width = %(BAR_WIDTH)d, prog_height = %(BAR_HEIGHT)d;
+    var refresh_interval = 1000, prev_bytes = 0;
+    var prog_color = "red";
+    var upload_id = "%(UUID)s"
+    var KILO = 1024;
+    var MEGA = KILO * 1024;
+    var GIGA = MEGA * 1024;
+    function size2str(nsize) { // convert size to human-readable string
+        if (nsize > GIGA) return (nsize / GIGA).toFixed(2) + " GiB";
+        if (nsize > MEGA) return (nsize / MEGA).toFixed(2) + " MiB";
+        if (nsize > KILO) return (nsize / KILO).toFixed(2) + " KiB";
+        return nsize + " B";
+    }
+    function trim(str) {
+        return str.replace(/^\s+|\s+$/g,"");
+    }
+    function newXMLHttpObject() {
+        var xmlhttp = null;
+        if (window.ActiveXObject) {
+            if (navigator.userAgent.toUpperCase().indexOf("MSIE 5") != -1)
+                xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+            else
+                xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
+        }
+        if (!xmlhttp && typeof(XMLHttpRequest) != 'undefined')
+            xmlhttp = new XMLHttpRequest();
+        return xmlhttp;
+    }
+    function doRequest(url, func) {
+        var obj = newXMLHttpObject();
+        obj.open("GET", url, true);
+        obj.onreadystatechange = function() { manageResponse(obj, func) };
+        obj.send(null);
+    }
+    function manageResponse(obj, func) {
+        if (obj.readyState == 4 && func != null)
+            func(obj);
+    }
+    function getNode(node) {
+        if (node == null)
+            return '';
+        if (node.textContent != null)
+            return node.textContent;
+        if (node.innerText != null)
+            return node.innerText;
+        if (node.text != null)
+            return node.text
+        return ''
+    }
+    function refreshProgress(total, left) {
+        if (total == 0)
+            total = 1;
+        var bytes = total - left;
+        var perc = bytes / total;
+        var rate = (bytes - prev_bytes) / (refresh_interval / 1000)
+        document.getElementById("bar").style.width = prog_width * perc;
+        document.getElementById("percentage").innerHTML = 
+            "<html><body>" + (perc*100).toFixed(1) + "&#37;</body></html>";
+        
+        document.getElementById("status").innerHTML = "<html><body>"
+            + [size2str(bytes), "/", size2str(total)
+               , "  (", size2str(rate), "/s)"].join("")
+            + "</body></html>";
+        prev_bytes = bytes;
+    }
+    function statusArrived(obj) {
+        txt = obj.responseText;
+        timer = setTimeout("updateStatus()", refresh_interval);
+        if (txt == null) {
+            clearTimeout(timer);
+            return;
+        }
+        field = trim(txt).split(",");
+        bytestotal = trim(field[0]);
+        bytesleft = trim(field[1]);
+        refreshProgress(bytestotal, bytesleft);
+    }
+    function updateStatus() {
+        doRequest("%(ST_PREFIX)s?id=" + upload_id, statusArrived);
+    }
+    function initProgressBar() {
+        document.write('<div id="border" style="position: absolute'
+            + ';width: ' + prog_width + 'px'
+            + ';height: ' + prog_height + 'px'
+            + ';border: 1px solid black; display: none">');
+        document.write('<div id="bar" style="position: absolute'
+            + ';width: 0px'
+            + ';height: ' + prog_height + 'px'
+            + ';background-color: ' + prog_color
+            + ';display: none">');
+        document.write('</div>'); // close bar div
+        document.write('<div id="percentage" style="position: absolute'
+            + ';width: ' + prog_width + 'px'
+            + ';height: ' + prog_height + 'px'
+            + ';text-align: center'
+            + ';vertical-align: middle'
+            + ';display: none">0.0&#37;</div>');
+        document.write('</div>'); // close border div
+        document.write("<br><br><br>");
+        document.write('<div id="status" style="display: none"></div>')
+    }
+    function showProgressBar() {
+        document.getElementById("border").style.display = "inline";
+        document.getElementById("bar").style.display = "inline";
+        document.getElementById("percentage").style.display = "inline";
+        document.getElementById("status").style.display = "inline";
+    }
+    function sendFiles() {
+        if (document.getElementById("filename").value == "") {
+            alert("Please select a file to upload.");
+            return false;
+        } else {
+            document.getElementById("send").style.display = "none";
+            document.getElementById("filename").style.display = "none";
+            showProgressBar();
+            updateStatus();
+            return true;
+        }
+    }
+    </script>
+    </head>
+    <body>
+    <form id="form" method="post" action="%(DL_PREFIX)s?id=%(UUID)s"
+        enctype="multipart/form-data" onsubmit="return sendFiles()">
+    <input id="filename" type="file" name="uploadfile">
+    <input id="send" type="submit" value="Send">
+    <script language="javascript">
+        initProgressBar();
+    </script>
+    </form>
+    </body>
+</html>
+"""
+def generate_upload_html(download_prefix, download_status_prefix):
+    return UPLOAD_TEMPLATE % \
+        {"DL_PREFIX" : download_prefix, "ST_PREFIX" : download_status_prefix, \
+         "UUID" : uuid.uuid4(), "BAR_WIDTH": 500, "BAR_HEIGHT": 30};
+
 # HTTP Reply
 HTTP_OK = 200
 HTTP_NOCONTENT = 204
@@ -238,13 +392,18 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         # the root directory is http://127.0.0.1/root
         self.PREFIX = "/files"
         self.DOWNLOAD_TAR_PREFIX = "/download_tar"
+        self.UPLOAD_PREFIX = "/upload"
+        self.UPLOAD_STATUS_PREFIX = "/upload_status"
         
         # The list of files appearing in the root of the virtual filesystem.
         # TODO: Implement locking to protect concurrent access.
         self.SHARED_FILES = {}
         
-        self.DOWNLOAD_UUID = {} # map from uuid to filelist
+        self.DOWNLOAD_UUID = {} # map uuid to filelist
         self.DOWNLOAD_UUID_LOCK = threading.Lock()
+        
+        self.UPLOAD_UUID = {} # map uuid to upload status
+        self.UPLOAD_UUID_LOCK = threading.Lock()
         
     def add_shared_file(self, key, path):
         final_key = key
@@ -282,6 +441,22 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
                 return fileList
             else:
                 return []
+    
+    def set_upload_status(self, id, s):
+        with self.UPLOAD_UUID_LOCK:
+            self.UPLOAD_UUID[id] = s
+            
+    def get_upload_status(self, id):
+        with self.UPLOAD_UUID_LOCK:
+            if id in self.UPLOAD_UUID:
+                return self.UPLOAD_UUID[id]
+            else:
+                return ""
+    
+    def remove_upload_status(self, id):
+        with self.UPLOAD_UUID_LOCK:
+            if id in self.UPLOAD_UUID:
+                self.UPLOAD_UUID.pop(id)
 
 class MyServiceHandler(SimpleHTTPRequestHandler):
     """ This class provides HTTP service to the client """
@@ -350,13 +525,23 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.send_html(generate_redirect_html(self.server.PREFIX))
         elif self.server.OPT_ALLOW_DOWNLOAD_TAR and path == self.server.DOWNLOAD_TAR_PREFIX:
             self.send_tar_download(self.get_param("id"))
+        elif path == self.server.UPLOAD_PREFIX:
+            self.send_html(generate_upload_html(self.server.UPLOAD_PREFIX, \
+                                                self.server.UPLOAD_STATUS_PREFIX))
+        elif prefix(path) == self.server.UPLOAD_STATUS_PREFIX:
+            self.send_text(self.server.get_upload_status(self.get_param("id")))
         else: # data file
             self.send_response(HTTP_NOTFOUND, "Not Found")
             
     def do_POST(self):
-        self.parse_params()
+        path = urllib.unquote(self.path)
         
-        if self.server.OPT_ALLOW_DOWNLOAD_TAR and self.path == self.server.DOWNLOAD_TAR_PREFIX:
+        DEBUG("HTTP POST Request: " + path)
+        
+        self.parse_params()
+        path = path.split("?")[0] # strip arguments from path
+        
+        if self.server.OPT_ALLOW_DOWNLOAD_TAR and path == self.server.DOWNLOAD_TAR_PREFIX:
             clength = int(self.headers.dict['content-length'])
             content = urllib.unquote_plus(self.rfile.read(clength))
             virtualpath = self.get_param("r")
@@ -400,7 +585,57 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                                            , body=redirect_html_body))
             else:
                 self.send_html(generate_redirect_html(virtualpath))
-            
+        elif path == self.server.UPLOAD_PREFIX: # new upload
+            self.receive_post_multipart_file()
+
+    def receive_post_multipart_file(self):
+        blength = multipart_boundary_length(self.headers.dict["content-type"])
+        if blength == 0: # incorrect header
+            return
+        id = self.get_param("id")
+        if not id:
+            return
+        blength += 8
+        flength = int(self.headers.dict["content-length"])
+        filename = "received-" + str(datetime.now())
+        while 1: # skip header
+            line = self.rfile.readline()
+            flength -= len(line)
+            if line.upper().startswith("CONTENT-DISPOSITION:"):
+                match = re.search("filename=\"([^\"]*)\"", line, re.I)
+                if match:
+                    filename = match.group(1)
+            if line == "\r\n":
+                break
+            else:
+                print(line)
+        flength -= blength
+        
+        DEBUG("Upload File: %s, length=%d" % (filename, flength))
+        
+        if self.save_received_file(id, filename, self.rfile, flength):
+            self.send_html("<html><body>Transfer Complete</body></html>")        
+        else:
+            self.send_html("<html><body>Transfer Failed</body></html>")
+        
+    def save_received_file(self, id, filename, rfile, length):
+        fullpath = "/home/timothy/ramdisk/" + filename
+        try:
+            with open(fullpath, "wb") as f:
+                left = length
+                writer = RateLimitingWriter(f, 1024) # TEST
+                while left > 0:
+                    size = min(RECEIVE_CHUNK_SIZE, left)
+                    writer.write(rfile.read(size))
+                    left -= size
+                    self.server.set_upload_status(id, "%d,%d" \
+                                   % (length, left))
+            return True
+        except Exception:
+            return False
+        finally:
+            self.server.remove_upload_status(id)
+        
     def get_local_path(self, path):
         """ Translate a filename separated by "/" to the local file path. """
         path = posixpath.normpath(path)
@@ -425,13 +660,21 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         return path
     
-    def send_html(self, content):
+    def send_text(self, content, format=None):
+        if not format:
+            format = "plain"
         self.send_response(HTTP_OK) # redirect
-        self.send_header("Content-Type", "text/html;charset=%(ENCODING)s"
-                    % {"ENCODING": get_system_encoding()})
+        self.send_header("Content-Type", "text/%(FORMAT)s;charset=%(ENCODING)s"
+                    % {"FORMAT": format, "ENCODING": get_system_encoding()})
         self.send_no_cache_header()
         self.end_headers()
         self.wfile.write(content)
+        
+    def send_html(self, content):
+        self.send_text(content, "html")
+        
+    def send_xml(self, content):
+        self.send_text(content, "xml")
             
     def send_file(self, filename, RateLimit=0, AllowCache=False):
         """ Read the file and send it to the client.
