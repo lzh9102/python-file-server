@@ -23,7 +23,7 @@ from datetime import datetime
 
 TRANSMIT_CHUNK_SIZE = 1024
 RECEIVE_CHUNK_SIZE = 1024
-UPLOAD_PROGRESS_REFRESH_INTERVAL = 1000
+UPLOAD_PREFIX = "/upload"
 
 ###### Helper Functions ######
 
@@ -241,18 +241,21 @@ UPLOAD_TEMPLATE = """
     <title>Uploading</title>
     <script language="javascript">
     var prog_width = %(BAR_WIDTH)d, prog_height = %(BAR_HEIGHT)d;
-    var refresh_interval = %(INTERVAL)d, prev_bytes = 0, req_count = 0;
-    var file_name = "";
+    var refresh_interval = 1000, curr_bytes = 0, prev_bytes = 0, req_count = 0;
+    var file_name = "", transfer_rate = 0, upload_finished = false;
     var prog_color = "red";
-    var upload_id = "%(UUID)s"
-    var KILO = 1024;
-    var MEGA = KILO * 1024;
-    var GIGA = MEGA * 1024;
+    var KILO = 1024, MEGA = KILO * 1024, GIGA = MEGA * 1024;
     function size2str(nsize) { // convert size to human-readable string
         if (nsize > Math.pow(10,9)) return (nsize / GIGA).toFixed(2) + " GiB";
         if (nsize > Math.pow(10,6)) return (nsize / MEGA).toFixed(2) + " MiB";
         if (nsize > Math.pow(10,3)) return (nsize / KILO).toFixed(2) + " KiB";
         return nsize + " B";
+    }
+    function sec2str(seconds) {        
+        var h = Math.floor(seconds / 3600);
+        var m = Math.floor(seconds %% 3600 / 60);
+        var s = Math.floor(seconds %% 3600 %% 60);
+        return ((h > 0 ? h + ":" : "") + (m > 0 ? (h > 0 && m < 10 ? "0" : "") + m + ":" : "0:") + (s < 10 ? "0" : "") + s);
     }
     function trim(str) {
         if (typeof(str) != 'undefined' && str != null)
@@ -272,21 +275,14 @@ UPLOAD_TEMPLATE = """
         } else { }
         return xmlhttp;
     }
-    function doRequest(url) {
-        var obj = newXMLHttpObject();
-        obj.open("GET", url, true);
-        obj.onreadystatechange = function() { 
-            if (obj.readyState == 4)
-                statusArrived(obj);
-        };
-        obj.send(null);
+    function refreshTransferRate() {
+        transfer_rate = (curr_bytes - prev_bytes) / (refresh_interval / 1000);
+        prev_bytes = curr_bytes;
+        setTimeout("refreshTransferRate()", refresh_interval);
     }
-    function refreshProgress(filename, total, left) {
-        if (total == 0)
-            total = 1;
-        var bytes = total - left;
+    function refreshProgress(filename, total, bytes) {
         var perc = bytes / total;
-        var rate = (bytes - prev_bytes) / (refresh_interval / 1000)
+        var rate = transfer_rate;
         document.getElementById("bar").style.width = prog_width * perc;
         document.getElementById("percentage").innerHTML = 
             "<html><body>" + (perc*100).toFixed(1) + "&#37;</body></html>";
@@ -296,32 +292,45 @@ UPLOAD_TEMPLATE = """
                , size2str(bytes), "/", size2str(total)
                , "  (", size2str(rate), "/s)"].join("")
             + "</body></html>";
-        prev_bytes = bytes;
+        curr_bytes = bytes;
     }
-    function statusArrived(obj) {
-        timer = setTimeout("updateStatus()", refresh_interval);
-        if (obj.status == 200) {
-            var txt = obj.responseText;
-            var field = trim(txt).split(",");
-            var filename = trim(field[0])
-            var bytestotal = parseInt(trim(field[1]));
-            var bytesleft = parseInt(trim(field[2]));
-            if (txt == "") {
-                if (file_name != "") {  /* upload finished */
-                    filename = file_name
-                    bytestotal = prev_bytes;
-                    bytesleft = 0;
-                    clearTimeout(timer);
-                }
-            } else {
-                file_name = filename;
+    function switchView() {
+        document.getElementById("send").style.display = "none";
+        document.getElementById("filename").style.display = "none";
+        document.getElementById("border").style.display = "inline";
+        document.getElementById("bar").style.display = "inline";
+        document.getElementById("percentage").style.display = "inline";
+        document.getElementById("status").style.display = "inline";  
+    }
+    function submitForm() {
+        var data = new FormData(document.getElementById("form"));
+        var req = newXMLHttpObject();
+        req.upload.onprogress = function(event) {
+            if (event.lengthComputable) {
+                var bytes = event.loaded;
+                var total = event.total;
+                refreshProgress(file_name, total, bytes);
             }
-            refreshProgress(filename, bytestotal, bytesleft);
+        };
+        req.onload = function(event) {
+            if (event.lengthComputable) {
+                var bytes = event.loaded;
+                var total = event.total;
+                refreshProgress(file_name, total, bytes);
+            }
         }
+        req.open("POST", "%(UL_PREFIX)s", true);
+        req.send(data);
+        refreshTransferRate();
     }
-    function updateStatus() {
-        doRequest("%(ST_PREFIX)s?req=" + (req_count++)
-            + "&id=" + upload_id);
+    function button_click() {
+        if (document.getElementById("filename").value == "") {
+            alert("Please select a file to upload.");
+        } else {
+            file_name = document.getElementById("filename").value;
+            switchView();
+            submitForm();
+        }
     }
     function initProgressBar() {
         document.write('<div id="border" style="position: absolute'
@@ -342,36 +351,14 @@ UPLOAD_TEMPLATE = """
             + ';display: none">0.0&#37;</div>');
         document.write('</div>'); // close border div
         document.write("<br><br><br>");
-        document.write('<div id="status" style="display: none"></div>')
-    }
-    function showProgressBar() {
-        document.getElementById("border").style.display = "inline";
-        document.getElementById("bar").style.display = "inline";
-        document.getElementById("percentage").style.display = "inline";
-        document.getElementById("status").style.display = "inline";
-    }
-    function startUpdating() {
-        document.getElementById("send").style.display = "none";
-        document.getElementById("filename").style.display = "none";
-        showProgressBar();
-        setTimeout("updateStatus();", refresh_interval);
-    }
-    function sendFiles() {
-        if (document.getElementById("filename").value == "") {
-            alert("Please select a file to upload.");
-            return false;
-        } else {
-            startUpdating();
-            return true;
-        }
+        document.write('<div id="status" style="display: none"></div>');
     }
     </script>
     </head>
     <body>
-    <form id="form" method="post" action="%(UL_PREFIX)s?id=%(UUID)s"
-        enctype="multipart/form-data" onsubmit="return sendFiles();">
+    <form id="form" name="upload_form" method="post" enctype="multipart/form-data">
     <input id="filename" type="file" name="uploadfile">
-    <input id="send" type="submit" value="Send">
+    <input id="send" type="button" value="Send" onclick="button_click()">
     <script language="javascript">
         initProgressBar();
     </script>
@@ -379,13 +366,9 @@ UPLOAD_TEMPLATE = """
     </body>
 </html>
 """
-def generate_upload_html(ul_prefix, st_prefix):
-    id = uuid.uuid4()
-    DEBUG("Generated upload html with uuid " + str(id))
+def generate_upload_html():
     return UPLOAD_TEMPLATE % \
-        {"UL_PREFIX" : ul_prefix, "ST_PREFIX" : st_prefix, \
-         "UUID" : id, "BAR_WIDTH": 500, "BAR_HEIGHT": 20 \
-         , "INTERVAL": UPLOAD_PROGRESS_REFRESH_INTERVAL};
+        {"UL_PREFIX" : UPLOAD_PREFIX, "BAR_WIDTH": 500, "BAR_HEIGHT": 20}
 
 # HTTP Reply
 HTTP_OK = 200
@@ -413,8 +396,6 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         # the root directory is http://127.0.0.1/root
         self.PREFIX = "/files"
         self.DOWNLOAD_TAR_PREFIX = "/download_tar"
-        self.UPLOAD_PREFIX = "/upload"
-        self.UPLOAD_STATUS_PREFIX = "/upload_status"
         
         # The list of files appearing in the root of the virtual filesystem.
         # TODO: Implement locking to protect concurrent access.
@@ -426,9 +407,6 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         
         self.DOWNLOAD_UUID = {} # map uuid to filelist
         self.DOWNLOAD_UUID_LOCK = threading.Lock()
-        
-        self.UPLOAD_UUID = {} # map uuid to upload status
-        self.UPLOAD_UUID_LOCK = threading.Lock()
         
     def add_shared_file(self, key, path):
         final_key = key
@@ -466,22 +444,6 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
                 return fileList
             else:
                 return []
-    
-    def set_upload_status(self, id, s):
-        with self.UPLOAD_UUID_LOCK:
-            self.UPLOAD_UUID[id] = s
-            
-    def get_upload_status(self, id):
-        with self.UPLOAD_UUID_LOCK:
-            if id in self.UPLOAD_UUID:
-                return self.UPLOAD_UUID[id]
-            else:
-                return ""
-    
-    def remove_upload_status(self, id):
-        with self.UPLOAD_UUID_LOCK:
-            if id in self.UPLOAD_UUID:
-                self.UPLOAD_UUID.pop(id)
 
 class MyServiceHandler(SimpleHTTPRequestHandler):
     """ This class provides HTTP service to the client """
@@ -550,11 +512,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.send_html(generate_redirect_html(self.server.PREFIX))
         elif self.server.OPT_ALLOW_DOWNLOAD_TAR and path == self.server.DOWNLOAD_TAR_PREFIX:
             self.send_tar_download(self.get_param("id"))
-        elif self.server.UPLOAD_PATH and path == self.server.UPLOAD_PREFIX:
-            self.send_html(generate_upload_html(self.server.UPLOAD_PREFIX, \
-                                                self.server.UPLOAD_STATUS_PREFIX))
-        elif self.server.UPLOAD_PATH and prefix(path) == self.server.UPLOAD_STATUS_PREFIX:
-            self.send_text(self.server.get_upload_status(self.get_param("id")))
+        elif self.server.UPLOAD_PATH and path == UPLOAD_PREFIX:
+            self.send_html(generate_upload_html())
         else: # data file
             self.send_response(HTTP_NOTFOUND, "Not Found")
             
@@ -611,16 +570,13 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                                            , body=redirect_html_body))
             else:
                 self.send_html(generate_redirect_html(virtualpath))
-        elif self.server.UPLOAD_PATH and path == self.server.UPLOAD_PREFIX: # new upload
+        elif self.server.UPLOAD_PATH and path == UPLOAD_PREFIX: # new upload
             """ handle client uploading file """
             self.receive_post_multipart_file()
 
     def receive_post_multipart_file(self):
         blength = multipart_boundary_length(self.headers.dict["content-type"])
         if blength == 0: # incorrect header
-            return
-        id = self.get_param("id")
-        if not id:
             return
         blength += 8
         flength = int(self.headers.dict["content-length"])
@@ -642,14 +598,14 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         WRITE_LOG("Start receiving file: %s, length: %d"
                   % (filename, flength), client_addr)
         
-        if self.save_received_file(id, filename, self.rfile, flength):
+        if self.save_received_file(filename, self.rfile, flength):
             WRITE_LOG("Successfully received file: %s" % (filename), client_addr)
             self.send_html("<html><body>Transfer Complete</body></html>")        
         else:
             WRITE_LOG("Failed to receive file: %s" % (filename), client_addr)
             self.send_html("<html><body>Transfer Failed</body></html>")
         
-    def save_received_file(self, id, filename, rfile, length):
+    def save_received_file(self, filename, rfile, length):
         fullpath = concat_folder_file(self.server.UPLOAD_PATH, filename)
         try:
             with open(fullpath, "wb") as f:
@@ -660,14 +616,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     size = min(RECEIVE_CHUNK_SIZE, left)
                     writer.write(rfile.read(size))
                     left -= size
-                    if timer.elapsed() > (UPLOAD_PROGRESS_REFRESH_INTERVAL >> 1):
-                        self.server.set_upload_status(id, "%s,%d,%d" \
-                                       % (filename, length, left))
-                        timer.reset()
         except Exception:
             pass
         finally:
-            self.server.remove_upload_status(id)
             if os.path.getsize(fullpath) != length:
                 os.remove(fullpath)
                 return False
