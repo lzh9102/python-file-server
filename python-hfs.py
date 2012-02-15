@@ -23,6 +23,11 @@ from datetime import datetime
 
 TRANSMIT_CHUNK_SIZE = 1024
 RECEIVE_CHUNK_SIZE = 1024
+# the prefix to add before the root directory
+# For example, if PREFIX is "/root" and the host is 127.0.0.1, then
+# the root directory is http://127.0.0.1/root
+PREFIX = "/files"
+DOWNLOAD_TAR_PREFIX = "/download_tar"
 UPLOAD_PREFIX = "/upload"
 
 ###### Helper Functions ######
@@ -172,17 +177,6 @@ class RateLimitingWriter:
             nleft -= TRANSMIT_CHUNK_SIZE
             index += TRANSMIT_CHUNK_SIZE
             self.__limiter.limit()
-            
-class IntervalTimer:
-    """ Measure the time interval between reset() and elapsed() """
-    def __init__(self):
-        self.reset()
-        pass
-    def reset(self):
-        self.__prevtime = time.time()
-    def elapsed(self):
-        """ Return the elapsed time in milliseconds. """
-        return (time.time() - self.__prevtime) * 1000
 
 __system_encoding = locale.getdefaultlocale()[1]
 def get_system_encoding():
@@ -238,10 +232,11 @@ def generate_file_not_found_html(file):
 UPLOAD_TEMPLATE = """
 <html class="html">
     <head>
-    <title>Uploading</title>
+    <title>File Upload</title>
     <script language="javascript">
     var prog_width = %(BAR_WIDTH)d, prog_height = %(BAR_HEIGHT)d;
-    var refresh_interval = 1000, curr_bytes = 0, prev_bytes = 0, req_count = 0;
+    var refresh_interval = 500, curr_bytes = 0, prev_bytes = 0, req_count = 0;
+    var total_size = 0, transfered_size = 0;
     var file_name = "", transfer_rate = 0, upload_finished = false;
     var prog_color = "red";
     var KILO = 1024, MEGA = KILO * 1024, GIGA = MEGA * 1024;
@@ -255,7 +250,9 @@ UPLOAD_TEMPLATE = """
         var h = Math.floor(seconds / 3600);
         var m = Math.floor(seconds %% 3600 / 60);
         var s = Math.floor(seconds %% 3600 %% 60);
-        return ((h > 0 ? h + ":" : "") + (m > 0 ? (h > 0 && m < 10 ? "0" : "") + m + ":" : "0:") + (s < 10 ? "0" : "") + s);
+        if (isNaN(seconds))
+            return "Inf."
+        return h + " h " + m + " m " + s + " s";
     }
     function trim(str) {
         if (typeof(str) != 'undefined' && str != null)
@@ -275,59 +272,58 @@ UPLOAD_TEMPLATE = """
         } else { }
         return xmlhttp;
     }
-    function refreshTransferRate() {
-        transfer_rate = (curr_bytes - prev_bytes) / (refresh_interval / 1000);
-        prev_bytes = curr_bytes;
-        setTimeout("refreshTransferRate()", refresh_interval);
-    }
-    function refreshProgress(filename, total, bytes) {
-        var perc = bytes / total;
-        var rate = transfer_rate;
+    function refreshProgress() {
+        var perc = transfered_size / total_size;
+        var rate = (transfered_size - prev_bytes) / (refresh_interval / 1000);
+        var t = (rate > 0) ? ((total_size - transfered_size) / rate) : "Inf";
+        if (upload_finished) t = 0;
         document.getElementById("bar").style.width = prog_width * perc;
         document.getElementById("percentage").innerHTML = 
             "<html><body>" + (perc*100).toFixed(1) + "&#37;</body></html>";
-        
+        if (upload_finished)
+            document.getElementById("percentage").innerHTML = 
+                "<html><body>Finished</body></html>";        
         document.getElementById("status").innerHTML = "<html><body>"
-            + [ "Uploading File: ", filename, "<br>"
-               , size2str(bytes), "/", size2str(total)
-               , "  (", size2str(rate), "/s)"].join("")
+            + [ "Uploading File: ", file_name, "<br>"
+               , size2str(transfered_size), "/", size2str(total_size)
+               , "  (", size2str(rate), "/s)"
+               , "<br>", sec2str(t), " remaining"].join("")
             + "</body></html>";
-        curr_bytes = bytes;
+        prev_bytes = transfered_size;
+        if (!upload_finished)
+            setTimeout("refreshProgress()", refresh_interval);
     }
     function switchView() {
-        document.getElementById("send").style.display = "none";
-        document.getElementById("filename").style.display = "none";
-        document.getElementById("border").style.display = "inline";
-        document.getElementById("bar").style.display = "inline";
-        document.getElementById("percentage").style.display = "inline";
-        document.getElementById("status").style.display = "inline";  
+        document.getElementById("form").style.display = "none";
+        document.getElementById("form_progress").style.display = "inline"; 
     }
     function submitForm() {
         var data = new FormData(document.getElementById("form"));
         var req = newXMLHttpObject();
+        file_name = document.getElementById("filename").value;
+        total_size = document.getElementById("filename").files[0].size;
         req.upload.onprogress = function(event) {
             if (event.lengthComputable) {
-                var bytes = event.loaded;
-                var total = event.total;
-                refreshProgress(file_name, total, bytes);
+                transfered_size = event.loaded;
             }
         };
+        req.onerror = function(event) { upload_finished = true;
+            setTimeout("document.getElementById('status').innerHTML = 'Upload Failed'"
+                , refresh_interval * 2);
+        };
         req.onload = function(event) {
-            if (event.lengthComputable) {
-                var bytes = event.loaded;
-                var total = event.total;
-                refreshProgress(file_name, total, bytes);
-            }
-        }
+            upload_finished = true;
+            transfered_size = total_size;
+            prev_bytes = transfered_size;
+        };
         req.open("POST", "%(UL_PREFIX)s", true);
         req.send(data);
-        refreshTransferRate();
+        refreshProgress();
     }
     function button_click() {
         if (document.getElementById("filename").value == "") {
             alert("Please select a file to upload.");
         } else {
-            file_name = document.getElementById("filename").value;
             switchView();
             submitForm();
         }
@@ -336,33 +332,34 @@ UPLOAD_TEMPLATE = """
         document.write('<div id="border" style="position: absolute'
             + ';width: ' + prog_width + 'px'
             + ';height: ' + prog_height + 'px'
-            + ';border: 1px solid black; display: none">');
+            + ';border: 1px solid black">');
         document.write('<div id="bar" style="position: absolute'
             + ';width: 0px'
             + ';height: ' + prog_height + 'px'
-            + ';background-color: ' + prog_color
-            + ';display: none">');
+            + ';background-color: ' + prog_color + '">');
         document.write('</div>'); // close bar div
         document.write('<div id="percentage" style="position: absolute'
             + ';width: ' + prog_width + 'px'
             + ';height: ' + prog_height + 'px'
             + ';text-align: center'
-            + ';vertical-align: middle'
-            + ';display: none">0.0&#37;</div>');
+            + ';vertical-align: middle">0.0&#37;</div>');
         document.write('</div>'); // close border div
         document.write("<br><br><br>");
-        document.write('<div id="status" style="display: none"></div>');
+        document.write('<div id="status"></div>');
     }
     </script>
     </head>
     <body>
-    <form id="form" name="upload_form" method="post" enctype="multipart/form-data">
+    <form id="form" method="post" enctype="multipart/form-data">
+    Please select a file to upload: <br>
     <input id="filename" type="file" name="uploadfile">
     <input id="send" type="button" value="Send" onclick="button_click()">
+    </form>
+    <div id="form_progress" style="display:none">
     <script language="javascript">
         initProgressBar();
     </script>
-    </form>
+    </div>
     </body>
 </html>
 """
@@ -390,12 +387,6 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         
         # whether to allow downloading as archive
         self.OPT_ALLOW_DOWNLOAD_TAR = False
-        
-        # the prefix to add before the root directory
-        # For example, if PREFIX is "/root" and the host is 127.0.0.1, then
-        # the root directory is http://127.0.0.1/root
-        self.PREFIX = "/files"
-        self.DOWNLOAD_TAR_PREFIX = "/download_tar"
         
         # The list of files appearing in the root of the virtual filesystem.
         # TODO: Implement locking to protect concurrent access.
@@ -463,10 +454,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.parse_params()
         path = path.split("?")[0] # strip arguments from path
         
-        if len(self.server.PREFIX) == 0 or prefix(path) == self.server.PREFIX:
+        if len(PREFIX) == 0 or prefix(path) == PREFIX:
             """ Handle Virtual Filesystem """
-            # strip path with self.server.PREFIX
-            if len(self.server.PREFIX) != 0:
+            # strip path with PREFIX
+            if len(PREFIX) != 0:
                 path = strip_prefix(path)
             
             localpath = self.get_local_path(path)
@@ -508,9 +499,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 """ Handle File Not Found error. """
                 self.send_html(generate_file_not_found_html(path))
                 
-        elif path == "/": # redirect '/' to /self.server.PREFIX
-            self.send_html(generate_redirect_html(self.server.PREFIX))
-        elif self.server.OPT_ALLOW_DOWNLOAD_TAR and path == self.server.DOWNLOAD_TAR_PREFIX:
+        elif path == "/": # redirect '/' to /PREFIX
+            self.send_html(generate_redirect_html(PREFIX))
+        elif self.server.OPT_ALLOW_DOWNLOAD_TAR and path == DOWNLOAD_TAR_PREFIX:
             self.send_tar_download(self.get_param("id"))
         elif self.server.UPLOAD_PATH and path == UPLOAD_PREFIX:
             self.send_html(generate_upload_html())
@@ -525,7 +516,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.parse_params()
         path = path.split("?")[0] # strip arguments from path
         
-        if self.server.OPT_ALLOW_DOWNLOAD_TAR and path == self.server.DOWNLOAD_TAR_PREFIX:
+        if self.server.OPT_ALLOW_DOWNLOAD_TAR and path == DOWNLOAD_TAR_PREFIX:
             """ handle client downloading tar archive """
             clength = int(self.headers.dict['content-length'])
             content = urllib.unquote_plus(self.rfile.read(clength))
@@ -566,7 +557,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 retrieve_code = str(uuid.uuid4())
                 self.server.push_download(fileList, retrieve_code)
                 self.send_html(
-                    generate_redirect_html(self.server.DOWNLOAD_TAR_PREFIX + "?id=" + retrieve_code
+                    generate_redirect_html(DOWNLOAD_TAR_PREFIX + "?id=" + retrieve_code
                                            , body=redirect_html_body))
             else:
                 self.send_html(generate_redirect_html(virtualpath))
@@ -611,12 +602,12 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             with open(fullpath, "wb") as f:
                 left = length
                 writer = RateLimitingWriter(f, 1024) # TEST
-                timer = IntervalTimer()
                 while left > 0:
                     size = min(RECEIVE_CHUNK_SIZE, left)
                     writer.write(rfile.read(size))
                     left -= size
-        except Exception:
+        except Exception, e:
+            DEBUG("Save File Exception: " + str(e))
             pass
         finally:
             if os.path.getsize(fullpath) != length:
@@ -749,22 +740,22 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
         parent_dir = strip_suffix(folder)
         
-        return "<a href='" + urllib.quote(self.server.PREFIX + parent_dir) + "'>Up</a>"
+        return "<a href='" + urllib.quote(PREFIX + parent_dir) + "'>Up</a>"
             
     
     def generate_home_link(self):
         """ Generate link for root directory """
-        link = ("/" if len(self.server.PREFIX) == 0 else self.server.PREFIX)
+        link = ("/" if len(PREFIX) == 0 else PREFIX)
         return "<a href='" + link + "'>Home</a>"
     
     def generate_dlmode_link(self, virtualpath):
-        link = self.server.PREFIX + virtualpath + "?dlmode=1"
+        link = PREFIX + virtualpath + "?dlmode=1"
         return "<a href='" + link + "'>Download Multiple Files</a>"
             
     def generate_link(self, virtualpath, text=None):
         """ Generate html link for a file/folder. """
         text = (suffix(virtualpath) if text == None else text)
-        link = self.server.PREFIX + virtualpath
+        link = PREFIX + virtualpath
         link = (link[0:len(link)-1] if link.endswith('/') else link) # strip trailing '/'
         return "<a href='%(LINK)s'>%(NAME)s</a> " % \
             {"LINK": urllib.quote(link), "NAME": cgi.escape(text)}
@@ -844,11 +835,11 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         sep = "&nbsp;&nbsp;&nbsp;"
 
         body = "<form name='frmfiles' action='%s?r=%s' method='POST'>" \
-                % (self.server.DOWNLOAD_TAR_PREFIX, self.server.PREFIX + virtualpath)
+                % (DOWNLOAD_TAR_PREFIX, PREFIX + virtualpath)
                 
         if DownloadMode: # Show download button
             body += "<input type='submit' name='download_tar' value='Download Tar'/>"
-            body += sep + "<a href='%s'>Back</a>" % (self.server.PREFIX + virtualpath) + "<br>"
+            body += sep + "<a href='%s'>Back</a>" % (PREFIX + virtualpath) + "<br>"
         else:   # Show navigation links and current path.
             body += self.generate_parent_link(virtualpath) + sep + \
                 self.generate_home_link()
