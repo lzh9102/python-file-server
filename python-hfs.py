@@ -591,10 +591,12 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         if self.save_received_file(filename, self.rfile, flength):
             WRITE_LOG("Successfully received file: %s" % (filename), client_addr)
-            self.send_html("<html><body>Transfer Complete</body></html>")        
+            self.send_response(HTTP_OK)
         else:
             WRITE_LOG("Failed to receive file: %s" % (filename), client_addr)
-            self.send_html("<html><body>Transfer Failed</body></html>")
+            self.send_response(HTTP_NOTFOUND)
+        
+        self.rfile.read(blength) # discard the remaining contents
         
     def save_received_file(self, filename, rfile, length):
         fullpath = concat_folder_file(self.server.UPLOAD_PATH, filename)
@@ -643,7 +645,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     def send_text(self, content, format=None):
         if not format:
             format = "plain"
-        self.send_response(HTTP_OK) # redirect
+        self.send_response(HTTP_OK)
         self.send_header("Content-Type", "text/%(FORMAT)s;charset=%(ENCODING)s"
                     % {"FORMAT": format, "ENCODING": get_system_encoding()})
         self.send_no_cache_header()
