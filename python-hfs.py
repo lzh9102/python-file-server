@@ -229,143 +229,239 @@ FILE_NOT_FOUND_TEMPLATE = """
 def generate_file_not_found_html(file):
     return FILE_NOT_FOUND_TEMPLATE % {"FILE": file}
 
-UPLOAD_TEMPLATE = """
-<html class="html">
-    <head>
-    <title>File Upload</title>
-    <script language="javascript">
-    var prog_width = %(BAR_WIDTH)d, prog_height = %(BAR_HEIGHT)d;
-    var refresh_interval = 500, curr_bytes = 0, prev_bytes = 0, req_count = 0;
-    var total_size = 0, transfered_size = 0;
-    var file_name = "", transfer_rate = 0, upload_finished = false;
-    var prog_color = "red";
-    var KILO = 1024, MEGA = KILO * 1024, GIGA = MEGA * 1024;
-    function size2str(nsize) { // convert size to human-readable string
+CSS_UPLOAD = """
+body { font: 0.8em/1em "trebuchet MS", arial, sans-serif; color: #777; }
+h1 { font-size: 1.6em; margin: 30px 0; padding: 0; }
+h2 { font-size: 1.4em; padding: 0 0 6px 0; margin: 0;
+    border-bottom: solid 1px #ccc; }
+h3 { font-size: 1.2em; margin: 0 0 10px 0; padding: 0; }
+p { margin: 0; padding: 0; }
+form { padding: 0 0 30px 0; }
+#wrap { width: 800px; margin: 0 auto; }
+#fileDrop { width: 360px; height: 300px; border: dashed 2px #ccc;
+    background-color: #fefefe; float: left; color: #ccc; }
+#fileDrop p { text-align: center; padding: 125px 0 0 0; font-size: 1.6em; }
+#files { margin: 0 0 0 400px; width: 356px; padding: 20px 20px 40px 20px;
+    border: solid 2px #ccc; background: #fefefe; min-height: 240px;
+    position: relative; }
+#fileDrop, #files { -moz-box-shadow: 0 0 20px #ccc; }
+#fileList { list-style: none; padding: 0; margin: 0; }
+#fileList li { margin: 0; padding: 10px 0; margin: 0; overflow: auto;
+    border-bottom: solid 1px #ccc; position: relative; }
+#fileList li img { width: 120px; border: solid 1px #999; padding: 6px;
+    margin: 0 10px 0 0; background-color: #eee; display: block; float: left; }
+#reset { position: absolute; top: 10px; right: 10px; color: #ccc;
+    text-decoration: none; }
+#reset:hover { color: #333; }
+#upload { color: #fff; position: absolute; display: block;
+    bottom: 10px; right: 10px; width: auto; background-color: #777;
+    padding: 4px 6px; text-decoration: none; font-weight: bold;
+    -moz-border-radius: 6px; }
+#upload:hover { background-color: #333; }
+.loader { position: absolute; bottom: 10px; right: 0; color: orange; }
+.loadingIndicator { width: 0%; height: 2px; background-color: orange;
+    position: absolute; bottom: 0; left: 0; }
+.imagePreview { width: 300px; padding: 10px; border: solid 1px #ccc;
+    position: absolute; background-color: white; }
+.imagePreview img { max-width: 100%; display: block; margin: 0 auto; }
+"""
+
+JS_FILEAPI = """
+function FileAPI (t, d, f) {
+    var fileList = t, fileField = f, dropZone = d, fileQueue = new Array(), preview = null;
+    this.init = function () {
+        fileField.onchange = this.addFiles;
+        dropZone.addEventListener("dragenter",  this.stopProp, false);
+        dropZone.addEventListener("dragleave",  this.dragExit, false);
+        dropZone.addEventListener("dragover",  this.dragOver, false);
+        dropZone.addEventListener("drop",  this.showDroppedFiles, false);
+    }
+    this.addFiles = function () {
+        addFileListItems(this.files);
+    }
+    this.showDroppedFiles = function (ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        var files = ev.dataTransfer.files;
+        addFileListItems(files);
+    }
+    this.clearList = function (ev) {
+        ev.preventDefault();
+        while (fileList.childNodes.length > 0) {
+            fileList.removeChild(
+                fileList.childNodes[fileList.childNodes.length - 1]
+            );
+        }
+    }
+    this.dragOver = function (ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        this.style["backgroundColor"] = "#F0FCF0";
+        this.style["borderColor"] = "#3DD13F";
+        this.style["color"] = "#3DD13F"
+    }
+    this.dragExit = function (ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        dropZone.style["backgroundColor"] = "#FEFEFE";
+        dropZone.style["borderColor"] = "#CCC";
+        dropZone.style["color"] = "#CCC"
+    }
+    this.stopProp = function (ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+    }
+    this.uploadQueue = function (ev) {
+        ev.preventDefault();
+        while (fileQueue.length > 0) {
+            var item = fileQueue.pop();
+            var p = document.createElement("p");
+            p.className = "loader";
+            var pText = document.createTextNode("Uploading...");
+            p.appendChild(pText);
+            item.li.appendChild(p);
+            uploadFile(item.file, item.li);
+        }
+    }
+    var size2str = function (nsize) {
+        var KILO = 1024, MEGA = KILO * 1024, GIGA = MEGA * 1024;
         if (nsize > Math.pow(10,9)) return (nsize / GIGA).toFixed(2) + " GiB";
         if (nsize > Math.pow(10,6)) return (nsize / MEGA).toFixed(2) + " MiB";
         if (nsize > Math.pow(10,3)) return (nsize / KILO).toFixed(2) + " KiB";
         return nsize + " B";
     }
-    function sec2str(seconds) {        
-        var h = Math.floor(seconds / 3600);
-        var m = Math.floor(seconds %% 3600 / 60);
-        var s = Math.floor(seconds %% 3600 %% 60);
-        if (isNaN(seconds))
-            return "Inf."
-        return h + " h " + m + " m " + s + " s";
-    }
-    function trim(str) {
-        if (typeof(str) != 'undefined' && str != null)
-            return str.replace(/^\s+|\s+$/g,"");
-        else
-            return ""
-    }
-    function newXMLHttpObject() {
-        var xmlhttp = null;
-        if (window.XMLHttpRequest) {
-            xmlhttp = new XMLHttpRequest();
-        } else if (window.ActiveXObject) {
-            if (navigator.userAgent.toUpperCase().indexOf("MSIE 5") != -1)
-                xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
-            else
-                xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
-        } else { }
-        return xmlhttp;
-    }
-    function refreshProgress() {
-        var perc = transfered_size / total_size;
-        var rate = (transfered_size - prev_bytes) / (refresh_interval / 1000);
-        var t = (rate > 0) ? ((total_size - transfered_size) / rate) : "Inf";
-        if (upload_finished) t = 0;
-        document.getElementById("bar").style.width = prog_width * perc;
-        document.getElementById("percentage").innerHTML = 
-            "<html><body>" + (perc*100).toFixed(1) + "&#37;</body></html>";
-        if (upload_finished)
-            document.getElementById("percentage").innerHTML = 
-                "<html><body>Finished</body></html>";        
-        document.getElementById("status").innerHTML = "<html><body>"
-            + [ "Uploading File: ", file_name, "<br>"
-               , size2str(transfered_size), "/", size2str(total_size)
-               , "  (", size2str(rate), "/s)"
-               , "<br>", sec2str(t), " remaining"].join("")
-            + "</body></html>";
-        prev_bytes = transfered_size;
-        if (!upload_finished)
-            setTimeout("refreshProgress()", refresh_interval);
-    }
-    function switchView() {
-        document.getElementById("form").style.display = "none";
-        document.getElementById("form_progress").style.display = "inline"; 
-    }
-    function submitForm() {
-        var data = new FormData(document.getElementById("form"));
-        var req = newXMLHttpObject();
-        file_name = document.getElementById("filename").value;
-        total_size = document.getElementById("filename").files[0].size;
-        req.upload.onprogress = function(event) {
-            if (event.lengthComputable) {
-                transfered_size = event.loaded;
-            }
-        };
-        req.onerror = function(event) { upload_finished = true;
-            setTimeout("document.getElementById('status').innerHTML = 'Upload Failed'"
-                , refresh_interval * 2);
-        };
-        req.onload = function(event) {
-            upload_finished = true;
-            transfered_size = total_size;
-            prev_bytes = transfered_size;
-        };
-        req.open("POST", "%(UL_PREFIX)s", true);
-        req.send(data);
-        refreshProgress();
-    }
-    function button_click() {
-        if (document.getElementById("filename").value == "") {
-            alert("Please select a file to upload.");
-        } else {
-            switchView();
-            submitForm();
+    var addFileListItems = function (files) {
+        for (var i = 0; i < files.length; i++) {
+            showFileInList(files[i]);
         }
     }
-    function initProgressBar() {
-        document.write('<div id="border" style="position: absolute'
-            + ';width: ' + prog_width + 'px'
-            + ';height: ' + prog_height + 'px'
-            + ';border: 1px solid black">');
-        document.write('<div id="bar" style="position: absolute'
-            + ';width: 0px'
-            + ';height: ' + prog_height + 'px'
-            + ';background-color: ' + prog_color + '">');
-        document.write('</div>'); // close bar div
-        document.write('<div id="percentage" style="position: absolute'
-            + ';width: ' + prog_width + 'px'
-            + ';height: ' + prog_height + 'px'
-            + ';text-align: center'
-            + ';vertical-align: middle">0.0&#37;</div>');
-        document.write('</div>'); // close border div
-        document.write("<br><br><br>");
-        document.write('<div id="status"></div>');
+    var showFileInList = function (file) {
+        if (file) {
+            var li = document.createElement("li");
+            var h3 = document.createElement("h3");
+            var h3Text = document.createTextNode(file.name);
+            h3.appendChild(h3Text);
+            li.appendChild(h3)
+            var p = document.createElement("p");
+            var pText = document.createTextNode(
+                size2str(file.size)
+            );
+            p.appendChild(pText);
+            li.appendChild(p);
+            var divLoader = document.createElement("div");
+            divLoader.className = "loadingIndicator";
+            li.appendChild(divLoader);
+            fileList.appendChild(li);
+            fileQueue.push({
+                file : file,
+                li : li
+            });
+        }
     }
-    </script>
+    var updateStatus = function (li, loaded, total) {
+        var loader = li.getElementsByTagName("div")[0];
+        var status = li.getElementsByTagName("p")[0];
+        loader.style["width"] = (loaded / total) * 100 + "%";
+        status.textContent = size2str(loaded) + "/" + size2str(total)
+    }
+    var uploadFile = function (file, li) {
+        if (li && file) {
+            var xhr = new XMLHttpRequest(),
+                upload = xhr.upload;
+            upload.addEventListener("progress", function (ev) {
+                if (ev.lengthComputable) {
+                    updateStatus(li, ev.loaded, ev.total);
+                }
+            }, false);
+            upload.addEventListener("load", function (ev) {
+                var ps = li.getElementsByTagName("p");
+                var div = li.getElementsByTagName("div")[0];
+                div.style["width"] = "100%";
+                div.style["backgroundColor"] = "#0f0";
+                for (var i = 0; i < ps.length; i++) {
+                    if (ps[i].className == "loader") {
+                        ps[i].textContent = "Upload complete";
+                        ps[i].style["color"] = "#3DD13F";
+                        break;
+                    }
+                }
+                if (ev.lengthComputable) {
+                    updateStatus(li, ev.loaded, ev.total);
+                }
+            }, false);
+            var data = new FormData();
+            data.append("filename", file);
+            upload.addEventListener("error", function (ev) {console.log(ev);}, false);
+            xhr.open("POST", upload_post_url, true);
+            xhr.setRequestHeader("Cache-Control", "no-cache");
+            xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+            xhr.setRequestHeader("X-File-Name", file.name);
+            xhr.send(data);
+        }
+    }    
+}
+window.onload = function () {
+    if (typeof FileReader == "undefined") alert ("Sorry your browser does not support the File API and this demo will not work for you");
+    FileAPI = new FileAPI(
+        document.getElementById("fileList"),
+        document.getElementById("fileDrop"),
+        document.getElementById("fileField")
+    );
+    FileAPI.init();
+    var reset = document.getElementById("reset");
+    reset.onclick = FileAPI.clearList;
+    var upload = document.getElementById("upload");
+    upload.onclick = FileAPI.uploadQueue;
+}
+"""
+
+UPLOAD_TEMPLATE = """
+<!DOCTYPE html>
+<!--
+    This upload form is modified from Phil's Ajax & XMLHttpRequest
+    file upload demo. You can find the original post here:
+    http://www.profilepicture.co.uk/tutorials/ajax-file-upload-xmlhttprequest-level-2/
+-->
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <style type="text/css">
+            %(CSS_UPLOAD)s
+        </style>
+        <title>FileAPI nad XHR 2 ajax uploading</title>
     </head>
     <body>
-    <form id="form" method="post" enctype="multipart/form-data">
-    Please select a file to upload: <br>
-    <input id="filename" type="file" name="uploadfile">
-    <input id="send" type="button" value="Send" onclick="button_click()">
-    </form>
-    <div id="form_progress" style="display:none">
-    <script language="javascript">
-        initProgressBar();
-    </script>
-    </div>
+        <div id="wrap">
+
+            <h1>Choose (multiple) files or drag them onto drop zone below</h1>
+
+            <form action="" method="post" enctype="multipart/form-data">
+                <input type="file" id="fileField" name="fileField" multiple />
+            </form>
+
+            <div id="fileDrop">
+                <p>Drop files here</p>
+            </div>
+
+            <div id="files">
+                <h2>File list</h2>
+                <a id="reset" href="#" title="Remove all files from list">Clear list</a>
+                <ul id="fileList"></ul>
+                <a id="upload" href="#" title="Upload all files in list">Upload files</a>
+            </div>
+        </div>
+        <script language="javascript">
+            var upload_post_url = "%(UPLOAD_URL)s";
+            %(JS_FILEAPI)s
+        </script>
     </body>
 </html>
 """
 def generate_upload_html():
     return UPLOAD_TEMPLATE % \
-        {"UL_PREFIX" : UPLOAD_PREFIX, "BAR_WIDTH": 500, "BAR_HEIGHT": 20}
+        {"UPLOAD_URL": UPLOAD_PREFIX, "CSS_UPLOAD": CSS_UPLOAD \
+         , "JS_FILEAPI": JS_FILEAPI};
+
 
 # HTTP Reply
 HTTP_OK = 200
