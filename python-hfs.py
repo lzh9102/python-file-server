@@ -447,6 +447,14 @@ function FileAPI (t, d, f) {
             xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
             xhr.setRequestHeader("X-File-Name", file.name);
             xhr.send(data);
+            li.getElementsByTagName("a")[0].onclick = function(ev) { // "remove" button
+                var msg = "Are you sure you want to remove the item being uploaded?";
+                if (itemGetStatus(li) != STATUS_TRANSFERRING || confirm(msg)) {
+                    xhr.abort();
+                    itemRemove(li);
+                    uploadNextFile();
+                }
+            }
             itemSetStatus(li, STATUS_TRANSFERRING);
         }
     }    
