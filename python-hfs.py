@@ -253,6 +253,8 @@ form { padding: 0 0 30px 0; }
 #reset { position: absolute; top: 10px; right: 10px; color: #ccc;
     text-decoration: none; }
 #reset:hover { color: #333; }
+#remove { color: #ccc; text-decoration: none; float:right; }
+#remove:hover { color: #333; }
 #upload { color: #fff; position: absolute; display: block;
     bottom: 10px; right: 10px; width: auto; background-color: #777;
     padding: 4px 6px; text-decoration: none; font-weight: bold;
@@ -261,15 +263,13 @@ form { padding: 0 0 30px 0; }
 .loader { position: absolute; bottom: 10px; right: 0; color: orange; }
 .loadingIndicator { width: 0%; height: 2px; background-color: orange;
     position: absolute; bottom: 0; left: 0; }
-.imagePreview { width: 300px; padding: 10px; border: solid 1px #ccc;
-    position: absolute; background-color: white; }
-.imagePreview img { max-width: 100%; display: block; margin: 0 auto; }
 """
 
 JS_FILEAPI = """
 function FileAPI (t, d, f) {
     var fileList = t, fileField = f, dropZone = d, fileQueue = new Array(), preview = null;
     var STATUS_TRANSFERRING = "tr", STATUS_QUEUE = "qu", STATUS_FINISHED = "fi";
+    var id_count = 0;
     this.init = function () {
         fileField.onchange = this.addFiles;
         dropZone.addEventListener("dragenter",  this.stopProp, false);
@@ -290,8 +290,8 @@ function FileAPI (t, d, f) {
         ev.preventDefault();
         for (var i=0; i<fileList.childNodes.length; i++) {
             var node = fileList.childNodes[i];
-            if (node.getElementsByTagName("div")[1].innerHTML != STATUS_TRANSFERRING) {
-                fileList.removeChild(node);
+            if (itemGetStatus(node) != STATUS_TRANSFERRING) {
+                itemRemove(node);
                 i--;
             }
         }
@@ -318,7 +318,7 @@ function FileAPI (t, d, f) {
         ev.preventDefault();
         for (var index in fileList.childNodes) {
             node = fileList.childNodes[index];
-            if (node.getElementsByTagName("div")[1].innerHTML == STATUS_TRANSFERRING)
+            if (itemGetStatus(node) == STATUS_TRANSFERRING)
                 return; // Only upload one file at a time.
         }
         if (fileQueue.length > 0) {
@@ -326,6 +326,15 @@ function FileAPI (t, d, f) {
         } else {
             alert("Please select at least a file to upload");
         }
+    }
+    var generateID = function() {
+        return (++id_count).toString() + Math.floor(Math.random()*10000).toString();
+    }
+    var generateInvisibleDivWithText = function(text) {
+        var div = document.createElement("div");
+        div.style["display"] = "none";
+        div.innerHTML = text;
+        return div;
     }
     var hideElement = function(name) {
         document.getElementById(name).style["display"] = "none";
@@ -351,12 +360,34 @@ function FileAPI (t, d, f) {
             showFileInList(files[i]);
         }
     }
+    var itemGetStatus = function (li) {
+        return li.getElementsByTagName("div")[1].innerHTML;
+    }
+    var itemSetStatus = function (li, st) {
+        return li.getElementsByTagName("div")[1].innerHTML = st;
+    }
+    var itemGetID = function(li) {
+        return li.getElementsByTagName("div")[2].innerHTML;
+    }
+    var itemRemove = function(li) {
+        var id = itemGetID(li);
+        fileList.removeChild(li);
+        for (var index in fileQueue)
+            if (fileQueue[index].id == id)
+                fileQueue.splice(index, 1); // remove fileQueue[index]
+    }
     var showFileInList = function (file) {
         if (file) {
             var li = document.createElement("li");
             var h3 = document.createElement("h3");
             var h3Text = document.createTextNode(file.name);
             h3.appendChild(h3Text);
+            var aRemove = document.createElement("a");
+            aRemove.href = "#"; aRemove.innerHTML = "Remove"; aRemove.id = "remove";
+            aRemove.onclick = function (ev) {
+                if (itemGetStatus(li) != STATUS_TRANSFERRING) itemRemove(li);
+            }
+            h3.appendChild(aRemove);
             li.appendChild(h3)
             var p = document.createElement("p");
             var pText = document.createTextNode(
@@ -367,15 +398,11 @@ function FileAPI (t, d, f) {
             var divLoader = document.createElement("div");
             divLoader.className = "loadingIndicator";
             li.appendChild(divLoader);
-            var divStatus = document.createElement("div");
-            divStatus.style["display"] = "none";
-            divStatus.innerHTML = STATUS_QUEUE;
-            li.appendChild(divStatus);
+            var id = generateID();
+            li.appendChild(generateInvisibleDivWithText(STATUS_QUEUE));
+            li.appendChild(generateInvisibleDivWithText(id));
             fileList.appendChild(li);
-            fileQueue.push({
-                file : file,
-                li : li
-            });
+            fileQueue.push({file : file, li : li, id : id});
         }
     }
     var updateStatus = function (li, loaded, total) {
@@ -397,7 +424,6 @@ function FileAPI (t, d, f) {
                 var succeed = (xhr.status == 200);
                 var ps = li.getElementsByTagName("p");
                 var div = li.getElementsByTagName("div")[0];
-                var divStatus = li.getElementsByTagName("div")[1];
                 div.style["width"] = "100%";
                 div.style["backgroundColor"] = "#0f0";
                 for (var i = 0; i < ps.length; i++) {
@@ -410,7 +436,7 @@ function FileAPI (t, d, f) {
                 if (ev.lengthComputable) {
                     updateStatus(li, succeed ? ev.loaded : 0, ev.total);
                 }
-                divStatus.innerHTML = STATUS_FINISHED;
+                itemSetStatus(li, STATUS_FINISHED);
                 uploadNextFile();
             }, false);
             var data = new FormData();
@@ -421,8 +447,7 @@ function FileAPI (t, d, f) {
             xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
             xhr.setRequestHeader("X-File-Name", file.name);
             xhr.send(data);
-            var divStatus = li.getElementsByTagName("div")[1];
-            divStatus.innerHTML = STATUS_TRANSFERRING;
+            itemSetStatus(li, STATUS_TRANSFERRING);
         }
     }    
 }
@@ -712,10 +737,12 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         if self.save_received_file(filename, self.rfile, flength):
             WRITE_LOG("Successfully received file: %s" % (filename), client_addr)
-            self.send_response(HTTP_OK)
+            self.send_html("<html><body>Successfully uploaded %s</body></html>" \
+                           % (filename), HTTP_OK)
         else:
             WRITE_LOG("Failed to receive file: %s" % (filename), client_addr)
-            self.send_response(HTTP_NOTFOUND)
+            self.send_html("<html><body>Failed to upload %s</body></html>" \
+                           % (filename), HTTP_NOTFOUND)
         
         self.rfile.read(blength) # discard the remaining contents
         
@@ -763,21 +790,21 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         return path
     
-    def send_text(self, content, format=None):
+    def send_text(self, content, format=None, response=HTTP_OK):
         if not format:
             format = "plain"
-        self.send_response(HTTP_OK)
+        self.send_response(response)
         self.send_header("Content-Type", "text/%(FORMAT)s;charset=%(ENCODING)s"
                     % {"FORMAT": format, "ENCODING": get_system_encoding()})
         self.send_no_cache_header()
         self.end_headers()
         self.wfile.write(content)
         
-    def send_html(self, content):
-        self.send_text(content, "html")
+    def send_html(self, content, response=HTTP_OK):
+        self.send_text(content, "html", response)
         
-    def send_xml(self, content):
-        self.send_text(content, "xml")
+    def send_xml(self, content, response=HTTP_OK):
+        self.send_text(content, "xml", response)
             
     def send_file(self, filename, RateLimit=0, AllowCache=False):
         """ Read the file and send it to the client.
