@@ -250,9 +250,9 @@ form { padding: 0 0 30px 0; }
     border-bottom: solid 1px #ccc; position: relative; }
 #fileList li img { width: 120px; border: solid 1px #999; padding: 6px;
     margin: 0 10px 0 0; background-color: #eee; display: block; float: left; }
-#reset { position: absolute; top: 10px; right: 10px; color: #ccc;
+#remove_completed { position: absolute; top: 10px; right: 10px; color: #ccc;
     text-decoration: none; }
-#reset:hover { color: #333; }
+#remove_completed:hover { color: #333; }
 #remove { color: #ccc; text-decoration: none; float:right; }
 #remove:hover { color: #333; }
 #upload { color: #fff; position: absolute; display: block;
@@ -286,11 +286,11 @@ function FileAPI (t, d, f) {
         var files = ev.dataTransfer.files;
         addFileListItems(files);
     }
-    this.clearList = function (ev) { // Remove all items except the one being uploaded.
+    this.removeCompleted = function (ev) {
         ev.preventDefault();
         for (var i=0; i<fileList.childNodes.length; i++) {
             var node = fileList.childNodes[i];
-            if (itemGetStatus(node) != STATUS_TRANSFERRING) {
+            if (itemGetStatus(node) == STATUS_FINISHED) {
                 itemRemove(node);
                 i--;
             }
@@ -316,13 +316,8 @@ function FileAPI (t, d, f) {
     }
     this.uploadQueue = function (ev) {
         ev.preventDefault();
-        for (var index in fileList.childNodes) {
-            node = fileList.childNodes[index];
-            if (itemGetStatus(node) == STATUS_TRANSFERRING)
-                return; // Only upload one file at a time.
-        }
         if (fileQueue.length > 0) {
-            uploadNextFile();
+            triggerUpload();
         } else {
             alert("Please select at least a file to upload");
         }
@@ -339,7 +334,12 @@ function FileAPI (t, d, f) {
     var hideElement = function(name) {
         document.getElementById(name).style["display"] = "none";
     }
-    var uploadNextFile = function() {
+    var triggerUpload = function() {
+        for (var index in fileList.childNodes) {
+            node = fileList.childNodes[index];
+            if (itemGetStatus(node) == STATUS_TRANSFERRING)
+                return; // Only upload one file at a time.
+        }
         var item = fileQueue.shift();
         var p = document.createElement("p");
         p.className = "loader";
@@ -437,7 +437,7 @@ function FileAPI (t, d, f) {
                     updateStatus(li, succeed ? ev.loaded : 0, ev.total);
                 }
                 itemSetStatus(li, STATUS_FINISHED);
-                uploadNextFile();
+                triggerUpload();
             }, false);
             var data = new FormData();
             data.append("filename", file);
@@ -448,11 +448,11 @@ function FileAPI (t, d, f) {
             xhr.setRequestHeader("X-File-Name", file.name);
             xhr.send(data);
             li.getElementsByTagName("a")[0].onclick = function(ev) { // "remove" button
-                var msg = "Are you sure you want to remove the item being uploaded?";
+                var msg = "Removing this item will cancel the upload. Continue?";
                 if (itemGetStatus(li) != STATUS_TRANSFERRING || confirm(msg)) {
                     xhr.abort();
                     itemRemove(li);
-                    uploadNextFile();
+                    triggerUpload();
                 }
             }
             itemSetStatus(li, STATUS_TRANSFERRING);
@@ -467,8 +467,8 @@ window.onload = function () {
         document.getElementById("fileField")
     );
     FileAPI.init();
-    var reset = document.getElementById("reset");
-    reset.onclick = FileAPI.clearList;
+    var remove = document.getElementById("remove_completed");
+    remove.onclick = FileAPI.removeCompleted;
     var upload = document.getElementById("upload");
     upload.onclick = FileAPI.uploadQueue;
 }
@@ -503,7 +503,7 @@ UPLOAD_TEMPLATE = """
 
             <div id="files">
                 <h2>File list</h2>
-                <a id="reset" href="#" title="Remove all files from list">Clear list</a>
+                <a id="remove_completed" href="#" title="Remove completed items from list">Remove completed uploads</a>
                 <ul id="fileList"></ul>
                 <a id="upload" href="#" title="Start uploading files in list">Start uploading</a>
             </div>
