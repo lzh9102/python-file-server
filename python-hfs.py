@@ -594,7 +594,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     """ This class provides HTTP service to the client """
     
     def __init__(self, request, client_address, server):
-        SimpleHTTPRequestHandler.__init__(self, request, client_address, server)
+        try:
+            SimpleHTTPRequestHandler.__init__(self, request, client_address, server)
+        except Exception:
+            DEBUG("Request from client %s has failed." % (client_address[0]))
 
     def log_message(self, format, *args):
         DEBUG("HTTP Server: " + (format % args))
@@ -628,7 +631,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             elif is_file(localpath):
                 """ Handle file downloading. """
                 DEBUG("Download File: " + localpath)
-                client = self.address_string()
+                client = self.client_address[0]
                 
                 try:                    
                     WRITE_LOG("Start Downloading %s" % (path), client)
@@ -738,7 +741,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
         flength -= blength
         
-        client_addr = self.address_string()
+        client_addr = self.client_address[0]
         
         WRITE_LOG("Start receiving file: %s, length: %d"
                   % (filename, flength), client_addr)
@@ -915,7 +918,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         text = (suffix(virtualpath) if text == None else text)
         link = PREFIX + virtualpath
         link = (link[0:len(link)-1] if link.endswith('/') else link) # strip trailing '/'
-        return "<a href='%(LINK)s'>%(NAME)s</a> " % \
+        return "<a href='%(LINK)s'>%(NAME)s</a>" % \
             {"LINK": urllib.quote(link), "NAME": cgi.escape(text)}
             
     def generate_table_row(self, index, *fields):
@@ -930,6 +933,18 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         for f in fields:
             result += "<td>" + str(f) + "</td>"
         result += "</tr>"
+        return result
+    
+    def generate_path_links(self, virtualpath):
+        node_list = virtualpath.split("/")[1:]
+        result = ""
+        path = ""
+        for node in node_list:
+            path += "/" + node
+            if path == virtualpath:
+                result += "/" + "<b>" + node + "</b>"
+            else:
+                result += "/" + self.generate_link(path, node)
         return result
                 
     def list_files(self, virtualpath, localpath, ShowCheckbox=False):
@@ -1005,7 +1020,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 body += sep + self.generate_dlmode_link(virtualpath)
             body += "<br>"
         
-        body += virtualpath + "<hr>"
+        body += self.generate_path_links(virtualpath) + "<hr>"
         
         allow_link = (self.server.OPT_FOLLOW_LINK or strip_suffix(virtualpath) == "/")
         if len(localpath) == 0 or is_dir(localpath, AllowLink=allow_link):
