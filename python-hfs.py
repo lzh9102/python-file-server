@@ -648,7 +648,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     
                     WRITE_LOG("Fully Downloaded %s - %s @ %d sec %s"
                         % (path, hrs(size), seconds, download_rate), client)
-                except Exception, e:
+                except Exception as e:
                     WRITE_LOG("Downloading Failed: %s" % (path), client)
                     DEBUG("Downloading Failed: " + localpath + " (" + e.message + ")")
                 
@@ -767,7 +767,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     size = min(RECEIVE_CHUNK_SIZE, left)
                     writer.write(rfile.read(size))
                     left -= size
-        except Exception, e:
+        except Exception as e:
             DEBUG("Save File Exception: " + str(e))
             pass
         finally:
@@ -1109,7 +1109,7 @@ if __name__ == "__main__":
         DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
         
         server.serve_forever()
-    except socket.error, e:
+    except socket.error as e:
         if e.errno == 13: # permission denied
             sys.stderr.write("Error: Permission Denied.\n")
             if OPT_PORT < 1024:
