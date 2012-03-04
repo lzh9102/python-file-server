@@ -494,6 +494,7 @@ UPLOAD_TEMPLATE = """
         <div id="wrap">            
 
             <form id="fileForm" action="" method="post" enctype="multipart/form-data">
+                <a href="%(ROOT)s">Return to download page</a>
                 <h1>Choose (multiple) files or drag them onto drop zone below</h1>
                 <input type="file" id="fileField" name="fileField" multiple />
             </form>
@@ -509,6 +510,7 @@ UPLOAD_TEMPLATE = """
                 <a id="upload" href="#" title="Start uploading files in list">Start uploading</a>
             </div>
         </div>
+
         <script language="javascript">
             var upload_post_url = "%(UPLOAD_URL)s";
             %(JS_FILEAPI)s
@@ -519,7 +521,7 @@ UPLOAD_TEMPLATE = """
 def generate_upload_html():
     return UPLOAD_TEMPLATE % \
         {"UPLOAD_URL": UPLOAD_PREFIX, "CSS_UPLOAD": CSS_UPLOAD \
-         , "JS_FILEAPI": JS_FILEAPI};
+         , "JS_FILEAPI": JS_FILEAPI, "ROOT": PREFIX};
 
 
 # HTTP Reply
@@ -1005,17 +1007,22 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
         body = "<form name='frmfiles' action='%s?r=%s' method='POST'>" \
                 % (DOWNLOAD_TAR_PREFIX, PREFIX + virtualpath)
-                
+        
+        body += self.generate_path_links(virtualpath)
+        
         if DownloadMode: # Show download button
             body += "<input type='submit' name='download_tar' value='Download Tar'/>"
             body += sep + "<a href='%s'>Back</a>" % (PREFIX + virtualpath) + "<br>"
         else:   # Show navigation links and current path.
             #body += self.generate_parent_link(virtualpath)
+            body += "<div align='right'>"
+            if self.server.UPLOAD_PATH:
+                body += "<a href='%s'>Goto Upload Page</a>" % (UPLOAD_PREFIX) + sep
             if self.server.OPT_ALLOW_DOWNLOAD_TAR:
-                body += sep + self.generate_dlmode_link(virtualpath)
-                body += "<br>"
+                body += self.generate_dlmode_link(virtualpath)
+            body += "</div>"
         
-        body += self.generate_path_links(virtualpath) + "<hr>"
+        body += "<hr><br>"
         
         allow_link = (self.server.OPT_FOLLOW_LINK or strip_suffix(virtualpath) == "/")
         if len(localpath) == 0 or is_dir(localpath, AllowLink=allow_link):
