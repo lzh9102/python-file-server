@@ -20,6 +20,7 @@ import tarfile
 import uuid
 import re
 from datetime import datetime
+import traceback
 
 TRANSMIT_CHUNK_SIZE = 1024
 RECEIVE_CHUNK_SIZE = 1024
@@ -487,7 +488,7 @@ UPLOAD_TEMPLATE = """
         <style type="text/css">
             %(CSS_UPLOAD)s
         </style>
-        <title>FileAPI nad XHR 2 ajax uploading</title>
+        <title>Upload Files</title>
     </head>
     <body>
         <div id="wrap">            
@@ -596,8 +597,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     def __init__(self, request, client_address, server):
         try:
             SimpleHTTPRequestHandler.__init__(self, request, client_address, server)
-        except Exception:
+        except Exception as e:
             DEBUG("Request from client %s has failed." % (client_address[0]))
+            DEBUG(str(e))
 
     def log_message(self, format, *args):
         DEBUG("HTTP Server: " + (format % args))
@@ -902,12 +904,6 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         parent_dir = strip_suffix(folder)
         
         return "<a href='" + urllib.quote(PREFIX + parent_dir) + "'>Up</a>"
-            
-    
-    def generate_home_link(self):
-        """ Generate link for root directory """
-        link = ("/" if len(PREFIX) == 0 else PREFIX)
-        return "<a href='" + link + "'>Home</a>"
     
     def generate_dlmode_link(self, virtualpath):
         link = PREFIX + virtualpath + "?dlmode=1"
@@ -937,14 +933,14 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     
     def generate_path_links(self, virtualpath):
         node_list = virtualpath.split("/")[1:]
-        result = ""
+        result = "(" + self.generate_link("/", "ROOT") + ")"
         path = ""
         for node in node_list:
             path += "/" + node
             if path == virtualpath:
-                result += "/" + "<b>" + node + "</b>"
+                result += " / " + "<b>" + node + "</b>"
             else:
-                result += "/" + self.generate_link(path, node)
+                result += " / " + self.generate_link(path, node)
         return result
                 
     def list_files(self, virtualpath, localpath, ShowCheckbox=False):
@@ -1014,11 +1010,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             body += "<input type='submit' name='download_tar' value='Download Tar'/>"
             body += sep + "<a href='%s'>Back</a>" % (PREFIX + virtualpath) + "<br>"
         else:   # Show navigation links and current path.
-            body += self.generate_parent_link(virtualpath) + sep + \
-                self.generate_home_link()
+            #body += self.generate_parent_link(virtualpath)
             if self.server.OPT_ALLOW_DOWNLOAD_TAR:
                 body += sep + self.generate_dlmode_link(virtualpath)
-            body += "<br>"
+                body += "<br>"
         
         body += self.generate_path_links(virtualpath) + "<hr>"
         
