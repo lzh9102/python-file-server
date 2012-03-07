@@ -378,7 +378,14 @@ function FileAPI (t, d, f) {
         if (nsize > Math.pow(10,9)) return (nsize / GIGA).toFixed(2) + " GiB";
         if (nsize > Math.pow(10,6)) return (nsize / MEGA).toFixed(2) + " MiB";
         if (nsize > Math.pow(10,3)) return (nsize / KILO).toFixed(2) + " KiB";
-        return nsize + " B";
+        return nsize.toFixed(2) + " B";
+    }
+    var sec2str = function (seconds) {        
+        var h = Math.floor(seconds / 3600);
+        var m = Math.floor(seconds % 3600 / 60);
+        var s = Math.floor(seconds % 3600 % 60);
+        if (isNaN(seconds)) return "Inf.";
+        return h + "h" + m + "m" + s + "s";
     }
     var addFileListItems = function (files) {
         for (var i = 0; i < files.length; i++) {
@@ -430,19 +437,27 @@ function FileAPI (t, d, f) {
             fileQueue.push({file : file, li : li, id : id});
         }
     }
-    var updateStatus = function (li, loaded, total) {
+    var updateStatus = function (li, loaded, total, prev_loaded, interval) {
         var loader = li.getElementsByTagName("div")[0];
         var status = li.getElementsByTagName("p")[0];
+        var upload_rate = (interval == 0) ? 0 : (loaded - prev_loaded) / interval;
+        var text = size2str(loaded) + "/" + size2str(total);
+        if (interval > 0) {
+            text += " (" + size2str(upload_rate) + "/s)";
+        }
         loader.style["width"] = (loaded / total) * 100 + "%";
-        status.textContent = size2str(loaded) + "/" + size2str(total)
+        status.textContent = text;
     }
     var uploadFile = function (file, li) {
         if (li && file) {
+            var prev_loaded = 0, prev_time = (new Date()).getTime();
             var xhr = new XMLHttpRequest(),
                 upload = xhr.upload;
             upload.addEventListener("progress", function (ev) {
-                if (ev.lengthComputable) {
-                    updateStatus(li, ev.loaded, ev.total);
+                var date = new Date(), interval = date.getTime() - prev_time;
+                if (ev.lengthComputable && interval >= 150) {
+                    updateStatus(li, ev.loaded, ev.total, prev_loaded, interval);
+                    prev_loaded = ev.loaded; prev_time = date.getTime();
                 }
             }, false);
             upload.addEventListener("load", function (ev) {
@@ -459,7 +474,7 @@ function FileAPI (t, d, f) {
                     }
                 }
                 if (ev.lengthComputable) {
-                    updateStatus(li, succeed ? ev.loaded : 0, ev.total);
+                    updateStatus(li, succeed ? ev.loaded : 0, ev.total, 0, 0);
                 }
                 itemSetStatus(li, STATUS_FINISHED);
                 triggerUpload();
