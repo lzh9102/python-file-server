@@ -267,7 +267,6 @@ form { padding: 0 0 30px 0; }
 #files { margin: 0 0 0 400px; width: 356px; padding: 20px 20px 40px 20px;
     border: solid 2px #ccc; background: #fefefe; min-height: 240px;
     position: relative; }
-#fileDrop, #files { -moz-box-shadow: 0 0 20px #ccc; }
 #fileList { list-style: none; padding: 0; margin: 0; }
 #fileList li { margin: 0; padding: 10px 0; margin: 0; overflow: auto;
     border-bottom: solid 1px #ccc; position: relative; }
@@ -308,6 +307,9 @@ function FileAPI (t, d, f) {
         ev.preventDefault();
         var files = ev.dataTransfer.files;
         addFileListItems(files);
+        dropZone.style["backgroundColor"] = "#FEFEFE";
+        dropZone.style["borderColor"] = "#CCC";
+        dropZone.style["color"] = "#CCC"
     }
     this.removeCompleted = function (ev) {
         ev.preventDefault();
