@@ -527,7 +527,7 @@ UPLOAD_TEMPLATE = """
         <style type="text/css">
             %(CSS_UPLOAD)s
         </style>
-        <title>Upload Files</title>
+        <title>Python HTTP File Server</title>
     </head>
     <body>
         <div id="wrap">            
@@ -974,7 +974,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     
     def generate_path_links(self, virtualpath):
         node_list = virtualpath.split("/")[1:]
-        result = "(" + self.generate_link("/", "ROOT") + ")"
+        if virtualpath != '/':
+            result = "(" + self.generate_link("/", "ROOT") + ")"
+        else:
+            result = "(<b>ROOT</b>)"
         path = ""
         for node in node_list:
             path += "/" + node
@@ -1013,9 +1016,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             local_filename = (self.server.get_shared_file(f) if is_root else concat_folder_file(localpath, f))
             
             if is_dir(local_filename, AllowLink=(self.server.OPT_FOLLOW_LINK or is_root)):
+                last_modified = self.date_time_string(os.path.getmtime(local_filename))
                 body += self.generate_table_row(i, chkbox_html + "(DIR) " + \
                     self.generate_link(concat_folder_file(virtualpath, f)) \
-                    , "", "")
+                    , "", last_modified)
                 i += 1
         
         # list files
