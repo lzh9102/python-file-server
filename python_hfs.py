@@ -912,12 +912,21 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         writer = RateLimitingWriter(self.wfile, rate_limit)
         
-        with tarfile.open(fileobj=writer, mode="w|gz") as tar:
+        with tarfile.open(fileobj=writer, mode="w|gz", dereference=True) as tar:
             for f in virtualpaths:
                 localpath = self.get_local_path(f)
-                name = suffix(f)
-                DEBUG("send_tar: add file " + localpath + " as " + name)
-                tar.add(localpath, name)
+                self.tar_recursive_add_files(tar, "", localpath)
+                
+    def tar_recursive_add_files(self, tar, prefix, localpath):
+        name = suffix(localpath)
+        if is_file(localpath):
+            tar.add(localpath, prefix + name)
+            DEBUG("send_tar: add file " + localpath)
+        elif is_dir(localpath, self.server.OPT_FOLLOW_LINK or (prefix == "")):
+            fileList = os.listdir(localpath)
+            for f in fileList:
+                self.tar_recursive_add_files(tar, prefix + name + "/", \
+                                             concat_folder_file(localpath, f))
                 
     def send_tar_download(self, id, ArchiveName=None):
         if id == None:
