@@ -360,18 +360,20 @@ function FileAPI (t, d, f) {
         document.getElementById(name).style["display"] = "none";
     }
     var triggerUpload = function() {
-        for (var index in fileList.childNodes) {
-            node = fileList.childNodes[index];
+        for (var i=0; i<fileList.childNodes.length; i++) {
+            node = fileList.childNodes[i];
             if (itemGetStatus(node) == STATUS_TRANSFERRING)
                 return; // Only upload one file at a time.
         }
         var item = fileQueue.shift();
-        var p = document.createElement("p");
-        p.className = "loader";
-        var pText = document.createTextNode("Uploading...");
-        p.appendChild(pText);
-        item.li.appendChild(p);
-        uploadFile(item.file, item.li);
+        if (item != null) {
+            var p = document.createElement("p");
+            p.className = "loader";
+            var pText = document.createTextNode("Uploading...");
+            p.appendChild(pText);
+            item.li.appendChild(p);
+            uploadFile(item.file, item.li);
+        }
     }
     var size2str = function (nsize) {
         var KILO = 1024, MEGA = KILO * 1024, GIGA = MEGA * 1024;
@@ -461,20 +463,19 @@ function FileAPI (t, d, f) {
                 }
             }, false);
             upload.addEventListener("load", function (ev) {
-                var succeed = (xhr.status == 200);
                 var ps = li.getElementsByTagName("p");
                 var div = li.getElementsByTagName("div")[0];
                 div.style["width"] = "100%";
                 div.style["backgroundColor"] = "#0f0";
                 for (var i = 0; i < ps.length; i++) {
                     if (ps[i].className == "loader") {
-                        ps[i].textContent = succeed ? "Upload complete" : "Upload failed";
-                        ps[i].style["color"] = succeed ? "#3DD13F" : "#FF0000";
+                        ps[i].textContent = "Upload complete";
+                        ps[i].style["color"] = "#3DD13F";
                         break;
                     }
                 }
                 if (ev.lengthComputable) {
-                    updateStatus(li, succeed ? ev.loaded : 0, ev.total, 0, 0);
+                    updateStatus(li, ev.loaded, ev.total, 0, 0);
                 }
                 itemSetStatus(li, STATUS_FINISHED);
                 triggerUpload();
