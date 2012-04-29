@@ -1173,5 +1173,7 @@ if __name__ == "__main__":
             sys.stderr.write("Error: Address already in use. Please try again later.\n")
         else:
             DEBUG(e)
+        sys.exit(1)
     except KeyboardInterrupt:
         sys.stderr.write("Server Terminated\n")
+        sys.exit(0)
