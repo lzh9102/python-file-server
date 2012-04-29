@@ -1119,7 +1119,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(
             description="Share your files across the Internet.")
-    parser.add_argument('file', type=str, nargs="?",
+    parser.add_argument('file', type=str, nargs="*",
                         help="file or directory to be shared")
     parser.add_argument('-p', '--port', type=int, default=OPT_PORT,
                         help="the port to listen on")
@@ -1130,7 +1130,7 @@ if __name__ == "__main__":
     parser.add_argument('--upload-path', type=str, default=OPT_UPLOAD_PATH)
     args = parser.parse_args()
     
-    FILES = args.file if args.file != None else [] 
+    FILES = args.file 
     OPT_PORT = args.port
     OPT_FOLLOW_LINK = args.follow_link
     OPT_ALLOW_DOWNLOAD_TAR = args.enable_tar
