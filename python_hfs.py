@@ -579,11 +579,14 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         # whether to follow symlink folders
         self.OPT_FOLLOW_LINK = False
         
-        # file transmission rate limit in bytes
+        # file transmission rate limit in bytes/sec
         self.OPT_RATE_LIMIT = 1024 * 1024 * 10
         
         # whether to allow downloading as archive
         self.OPT_ALLOW_DOWNLOAD_TAR = False
+        
+        # upload speed limit in bytes/sec
+        self.OPT_UPLOAD_RATE_LIMIT = 1024 * 1024 * 10
         
         # The list of files appearing in the root of the virtual filesystem.
         # TODO: Implement locking to protect concurrent access.
@@ -806,7 +809,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         try:
             with open(fullpath, "wb") as f:
                 left = length
-                writer = RateLimitingWriter(f, 1024) # TEST
+                rate_limit = self.server.OPT_UPLOAD_RATE_LIMIT / RECEIVE_CHUNK_SIZE
+                writer = RateLimitingWriter(f, rate_limit)
                 while left > 0:
                     size = min(RECEIVE_CHUNK_SIZE, left)
                     writer.write(rfile.read(size))
@@ -1116,6 +1120,8 @@ if __name__ == "__main__":
     PREFIX = "file/"
     OPT_ALLOW_DOWNLOAD_TAR = False
     OPT_UPLOAD_PATH = None
+    OPT_RATE_LIMIT = 1024 * 10
+    OPT_UPLOAD_RATE_LIMIT = 1024 * 10
     
     parser = argparse.ArgumentParser(
             description="Share your files across the Internet.")
@@ -1127,7 +1133,11 @@ if __name__ == "__main__":
                         help="follow symbolic links when listing files; disabled by default")
     parser.add_argument('--enable-tar', action="store_true", default=OPT_ALLOW_DOWNLOAD_TAR,
                         help="enable remote user to download mutiple files at once in a tar archive")
+    parser.add_argument('--rate-limit', type=int, default=OPT_RATE_LIMIT,
+                        help="single file download rate limit in KB/s")
     parser.add_argument('--upload-path', type=str, default=OPT_UPLOAD_PATH)
+    parser.add_argument('--upload-rate-limit', type=int, default=OPT_UPLOAD_RATE_LIMIT,
+                        help="single file upload rate limit in KB/s")
     args = parser.parse_args()
     
     FILES = args.file 
@@ -1135,6 +1145,8 @@ if __name__ == "__main__":
     OPT_FOLLOW_LINK = args.follow_link
     OPT_ALLOW_DOWNLOAD_TAR = args.enable_tar
     OPT_UPLOAD_PATH = args.upload_path
+    OPT_RATE_LIMIT = args.rate_limit
+    OPT_UPLOAD_RATE_LIMIT = args.upload_rate_limit
     if not PREFIX.startswith('/'):
         PREFIX = '/' + PREFIX
     if PREFIX.endswith('/'):
@@ -1158,6 +1170,8 @@ if __name__ == "__main__":
         server.OPT_ALLOW_DOWNLOAD_TAR = OPT_ALLOW_DOWNLOAD_TAR
         server.PREFIX = PREFIX
         server.UPLOAD_PATH = OPT_UPLOAD_PATH
+        server.OPT_RATE_LIMIT = OPT_RATE_LIMIT * 1024
+        server.OPT_UPLOAD_RATE_LIMIT = OPT_UPLOAD_RATE_LIMIT * 1024
         
         WRITE_LOG("Server Started")
         DEBUG("System Language: " + locale.getdefaultlocale()[0])
