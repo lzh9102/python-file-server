@@ -377,9 +377,9 @@ function FileAPI (t, d, f) {
     }
     var size2str = function (nsize) {
         var KILO = 1024, MEGA = KILO * 1024, GIGA = MEGA * 1024;
-        if (nsize > Math.pow(10,9)) return (nsize / GIGA).toFixed(2) + " GiB";
-        if (nsize > Math.pow(10,6)) return (nsize / MEGA).toFixed(2) + " MiB";
-        if (nsize > Math.pow(10,3)) return (nsize / KILO).toFixed(2) + " KiB";
+        if (nsize > GIGA) return (nsize / GIGA).toFixed(2) + " GiB";
+        if (nsize > MEGA) return (nsize / MEGA).toFixed(2) + " MiB";
+        if (nsize > KILO) return (nsize / KILO).toFixed(2) + " KiB";
         return nsize.toFixed(2) + " B";
     }
     var sec2str = function (seconds) {        
@@ -442,7 +442,7 @@ function FileAPI (t, d, f) {
     var updateStatus = function (li, loaded, total, prev_loaded, interval) {
         var loader = li.getElementsByTagName("div")[0];
         var status = li.getElementsByTagName("p")[0];
-        var upload_rate = (interval == 0) ? 0 : (loaded - prev_loaded) / interval;
+        var upload_rate = (interval == 0) ? 0 : (loaded - prev_loaded) / interval * 1000;
         var text = size2str(loaded) + "/" + size2str(total);
         if (interval > 0) {
             text += " (" + size2str(upload_rate) + "/s)";
@@ -790,8 +790,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         client_addr = self.client_address[0]
         
-        WRITE_LOG("Start receiving file: %s, length: %d"
-                  % (filename, flength), client_addr)
+        WRITE_LOG("Start receiving file: %s, size: %s"
+                  % (filename, human_readable_size(flength)), client_addr)
         
         if self.save_received_file(filename, self.rfile, flength):
             WRITE_LOG("Successfully received file: %s" % (filename), client_addr)
@@ -1140,7 +1140,7 @@ if __name__ == "__main__":
                         help="single file upload rate limit in KB/s")
     args = parser.parse_args()
     
-    FILES = args.file 
+    FILES = args.file
     OPT_PORT = args.port
     OPT_FOLLOW_LINK = args.follow_link
     OPT_ALLOW_DOWNLOAD_TAR = args.enable_tar
