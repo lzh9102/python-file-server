@@ -790,11 +790,20 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         client_addr = self.client_address[0]
         
-        WRITE_LOG("Start receiving file: %s, size: %s"
+        WRITE_LOG("Start receiving file: %s (%s)"
                   % (filename, human_readable_size(flength)), client_addr)
         
+        t0 = time.time()
+        
         if self.save_received_file(filename, self.rfile, flength):
-            WRITE_LOG("Successfully received file: %s" % (filename), client_addr)
+            seconds = time.time() - t0
+            if seconds > 0:
+                rate_str = "@ " + human_readable_size(flength / seconds) + "/s"
+            else:
+                rate_str = ""
+            WRITE_LOG("Successfully received file: %s (%s) %s" % \
+                      (filename, human_readable_size(flength), rate_str), \
+                      client_addr)
             self.send_html("<html><body>Successfully uploaded %s</body></html>" \
                            % (filename), HTTP_OK)
         else:
