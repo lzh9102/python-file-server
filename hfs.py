@@ -1124,7 +1124,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     """ Parse command line option """
-    OPT_PORT = 80
+    OPT_PORT = 8000
     OPT_FOLLOW_LINK = False
     PREFIX = "file/"
     OPT_ALLOW_DOWNLOAD_TAR = False
