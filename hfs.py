@@ -210,7 +210,7 @@ def get_system_encoding():
 FOLDER_LISTING_TEMPLATE = """
 <html class="html">
     <head>
-    <title>Python HTTP File Server</title>
+    <title>HTTP File Share</title>
     <style type="text/css">
     tr.tr_odd {
         background-color: #E6FFCC
@@ -528,7 +528,7 @@ UPLOAD_TEMPLATE = """
         <style type="text/css">
             %(CSS_UPLOAD)s
         </style>
-        <title>Python HTTP File Server</title>
+        <title>HTTP File Share</title>
     </head>
     <body>
         <div id="wrap">            
