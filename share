@@ -1,0 +1,72 @@
+#!/bin/bash
+
+PORT=8000
+HFS=hfs
+
+# check for xclip
+type xclip >& /dev/null
+if [ $? -ne 0 ]; then  # no xclip
+	echo "You must install xclip to use this script."
+	exit 1
+fi
+
+check_port_available() {
+	nc -l $1 &
+	pid=$!
+	(sleep 0.1 && kill $pid)
+	return $?
+}
+
+if [ $# -lt 1 ]; then
+	echo "usage: $0 <file1> [<file2> [ <file3> ...]]"
+	exit 1
+fi
+
+# extract and find internet address
+IP_PATTERN="[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*"
+IP_DATA=`ifconfig | grep -o "inet addr:$IP_PATTERN "`
+for item in $IP_DATA; do
+	if [[ "$item" =~ $IP_PATTERN ]]; then
+		SELF_ADDR=${BASH_REMATCH[0]}
+		if [ "$SELF_ADDR" == "127.0.0.1" ]; then # ignore loopback address
+			unset SELF_ADDR
+			continue
+		fi
+		break
+	fi
+done
+
+if [ -z "$SELF_ADDR" ]; then
+	echo "Your computer has no connection."
+	exit 1
+fi
+
+if [[ "$SELF_ADDR" =~ 192\.168\.[0-9]*\.[0-9]* ]]; then # local network address
+	echo "Your address $SELF_ADDR is not visible to remote hosts."
+	read -n 1 -p "Still proceed? y/[N]: " ch
+	echo
+	if [ "$ch" != "y" ]; then
+		exit 1
+	fi
+fi
+
+for ((port=$PORT; port<65536; port++)); do
+	echo "Trying port $port..."
+	check_port_available $port >& /dev/null
+	if [ $? -eq 0 ]; then
+		if [ $# -eq 1 ]; then
+			LINK="http://$SELF_ADDR:$port/file/$1"
+		else
+			LINK="http://$SELF_ADDR:$port/"
+		fi
+		echo
+		echo "\"$LINK\" copied to clipboard"
+		echo
+		echo $LINK | xclip -selection c   # copy to clipboard
+		$HFS -p $port "$@" 2> /dev/null
+		if [ $? -eq 0 ]; then
+			break
+		fi
+	fi
+done
+
