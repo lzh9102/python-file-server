@@ -41,6 +41,7 @@ import argparse
 import tarfile
 import uuid
 import re
+import gettext
 from datetime import datetime
 import traceback
 
@@ -52,6 +53,13 @@ RECEIVE_CHUNK_SIZE = 1024
 PREFIX = "/files"
 DOWNLOAD_TAR_PREFIX = "/download_tar"
 UPLOAD_PREFIX = "/upload"
+
+###### Initialize Translations ######
+try:
+    translation_catalog = gettext.Catalog("http-file-share")
+    _ = translation_catalog.gettext
+except:
+    _ = lambda s: s;
 
 ###### Helper Functions ######
 
