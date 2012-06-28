@@ -1195,20 +1195,20 @@ if __name__ == "__main__":
         server.OPT_UPLOAD_RATE_LIMIT = OPT_UPLOAD_RATE_LIMIT * 1024
         
         WRITE_LOG(_("Server Started"))
-        DEBUG("System Language: " + locale.getdefaultlocale()[0])
-        DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
+        #DEBUG("System Language: " + locale.getdefaultlocale()[0])
+        #DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
         
         server.serve_forever()
     except socket.error as e:
         if e.errno == 13: # permission denied
-            sys.stderr.write("Error: Permission Denied.\n")
+            sys.stderr.write(_("Error: Permission Denied.") + "\n")
             if OPT_PORT < 1024:
-                sys.stderr.write("(Notice: Unix requires root privilege to bind on port<1024)\n")
+                sys.stderr.write(_("(Notice: Unix requires root privilege to bind on port<1024)") + "\n")
         elif e.errno == 98: # address already in use
-            sys.stderr.write("Error: Address already in use. Please try again later.\n")
+            sys.stderr.write(_("Error: Address already in use. Please try again later.") + "\n")
         else:
             DEBUG(e)
         sys.exit(1)
     except KeyboardInterrupt:
-        sys.stderr.write("Server Terminated\n")
+        sys.stderr.write(_("Server Terminated") + "\n")
         sys.exit(0)
