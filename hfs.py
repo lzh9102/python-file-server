@@ -1204,8 +1204,8 @@ if __name__ == "__main__":
             sys.stderr.write(_("Error: Permission Denied.") + "\n")
             if OPT_PORT < 1024:
                 sys.stderr.write(_("(Notice: Unix requires root privilege to bind on port<1024)") + "\n")
-        elif e.errno == 98: # address already in use
-            sys.stderr.write(_("Error: Address already in use. Please try again later.") + "\n")
+        elif e.errno == 98: # port already in use
+            sys.stderr.write(_("Error: Port already in use. Please try again later.") + "\n")
         else:
             DEBUG(e)
         sys.exit(1)
