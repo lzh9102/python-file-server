@@ -125,12 +125,12 @@ def human_readable_size(nsize):
     M = K * 1024
     G = M * 1024
     if nsize > G:
-        return "%(SIZE).1f GiB" % {"SIZE": float(nsize) / G}
+        return ("%(SIZE).1f " + _("GiB")) % {"SIZE": float(nsize) / G}
     if nsize > M:
-        return "%(SIZE).1f MiB" % {"SIZE": float(nsize) / M}
+        return ("%(SIZE).1f " + _("MiB")) % {"SIZE": float(nsize) / M}
     if nsize > K:
-        return "%(SIZE).1f KiB" % {"SIZE": float(nsize) / K}
-    return str(nsize) + " B"
+        return ("%(SIZE).1f " + _("KiB")) % {"SIZE": float(nsize) / K}
+    return str(nsize) + " " + _("B")
 
 def multipart_boundary_length(content_type):
     """ Parse the content-type field and return the boundary length. """
@@ -218,7 +218,7 @@ def get_system_encoding():
 FOLDER_LISTING_TEMPLATE = """
 <html class="html">
     <head>
-    <title>HTTP File Share</title>
+    <title>%(TITLE)s</title>
     <style type="text/css">
     tr.tr_odd {
         background-color: #E6FFCC
@@ -232,7 +232,8 @@ FOLDER_LISTING_TEMPLATE = """
 </html>
 """
 def generate_folder_listing_html(body):
-    return FOLDER_LISTING_TEMPLATE % {"BODY": body}
+    return FOLDER_LISTING_TEMPLATE % {"BODY": body, \
+                "TITLE": _("HTTP File Share")}
 
 REDIRECT_TEMPLATE = """
 <html class="html">
@@ -244,21 +245,24 @@ REDIRECT_TEMPLATE = """
 """
 def generate_redirect_html(url, body=None):
     if body == None:
-        body = "redirect: <a href='%(TARGET)s'>%(TARGET)s</a>" % {"TARGET": url}
+        body = _("redirect:") \
+            + " <a href='%(TARGET)s'>%(TARGET)s</a>" % {"TARGET": url}
     return REDIRECT_TEMPLATE % {"TARGET": url, "BODY": body}
 
 FILE_NOT_FOUND_TEMPLATE = """
 <html class="html">
     <head>
-    <title>%(FILE)s: File Not Found</title>
+    <title>%(TITLE)s</title>
     </head>
     <body style='font-size: 50'>
-    <font color=red>%(FILE)s doesn't exist on the server.</font>
+    <font color=red>%(MESSAGE)s</font>
     </body>
 </html>
 """
 def generate_file_not_found_html(file):
-    return FILE_NOT_FOUND_TEMPLATE % {"FILE": file}
+    return FILE_NOT_FOUND_TEMPLATE % { \
+            "TITLE": _("%s: file not found") % (file), \
+            "MESSAGE": _("%s doesn't exist on the server.") % (file) } 
 
 CSS_UPLOAD = """
 body { font: 0.8em/1em "trebuchet MS", arial, sans-serif; color: #777; }
