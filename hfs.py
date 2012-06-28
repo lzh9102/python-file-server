@@ -1194,7 +1194,7 @@ if __name__ == "__main__":
         server.OPT_RATE_LIMIT = OPT_RATE_LIMIT * 1024
         server.OPT_UPLOAD_RATE_LIMIT = OPT_UPLOAD_RATE_LIMIT * 1024
         
-        WRITE_LOG(_("Server Started"))
+        WRITE_LOG(_("Server started on port %d") % (OPT_PORT))
         #DEBUG("System Language: " + locale.getdefaultlocale()[0])
         #DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
         
