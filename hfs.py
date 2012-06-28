@@ -693,7 +693,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 client = self.client_address[0]
                 
                 try:                    
-                    WRITE_LOG("Start Downloading %s" % (path), client)
+                    WRITE_LOG(_("Start Downloading %s") % (path), client)
                     
                     t0 = time.time()
                     size = self.send_file(localpath, RateLimit=self.server.OPT_RATE_LIMIT)
@@ -705,10 +705,10 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     else:
                         download_rate = ""
                     
-                    WRITE_LOG("Fully Downloaded %s - %s @ %d sec %s"
+                    WRITE_LOG((_("Fully Downloaded %s")  + " - %s @ %d sec %s")
                         % (path, hrs(size), seconds, download_rate), client)
                 except Exception as e:
-                    WRITE_LOG("Downloading Failed: %s" % (path), client)
+                    WRITE_LOG(_("Downloading Failed: %s") % (path), client)
                     DEBUG("Downloading Failed: " + localpath + " (" + e.message + ")")
                 
             else:
@@ -802,7 +802,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         client_addr = self.client_address[0]
         
-        WRITE_LOG("Start receiving file: %s (%s)"
+        WRITE_LOG(_("Start receiving file: %s (%s)")
                   % (filename, human_readable_size(flength)), client_addr)
         
         t0 = time.time()
@@ -813,13 +813,13 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 rate_str = "@ " + human_readable_size(flength / seconds) + "/s"
             else:
                 rate_str = ""
-            WRITE_LOG("Successfully received file: %s (%s) %s" % \
+            WRITE_LOG((_("Successfully received file: %s (%s)") + " %s") % \
                       (filename, human_readable_size(flength), rate_str), \
                       client_addr)
             self.send_html("<html><body>Successfully uploaded %s</body></html>" \
                            % (filename), HTTP_OK)
         else:
-            WRITE_LOG("Failed to receive file: %s" % (filename), client_addr)
+            WRITE_LOG(_("Failed to receive file: %s") % (filename), client_addr)
             self.send_html("<html><body>Failed to upload %s</body></html>" \
                            % (filename), HTTP_NOTFOUND)
         
@@ -1194,7 +1194,7 @@ if __name__ == "__main__":
         server.OPT_RATE_LIMIT = OPT_RATE_LIMIT * 1024
         server.OPT_UPLOAD_RATE_LIMIT = OPT_UPLOAD_RATE_LIMIT * 1024
         
-        WRITE_LOG("Server Started")
+        WRITE_LOG(_("Server Started"))
         DEBUG("System Language: " + locale.getdefaultlocale()[0])
         DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
         
