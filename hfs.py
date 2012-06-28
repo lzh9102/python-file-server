@@ -802,8 +802,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         
         client_addr = self.client_address[0]
         
-        WRITE_LOG(_("Start receiving file: %s (%s)")
-                  % (filename, human_readable_size(flength)), client_addr)
+        WRITE_LOG(_("Start receiving file: %(FILE)s (%(SIZE)s)") \
+                  % {"FILE": filename, "SIZE": human_readable_size(flength)}, client_addr)
         
         t0 = time.time()
         
@@ -813,8 +813,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 rate_str = "@ " + human_readable_size(flength / seconds) + "/s"
             else:
                 rate_str = ""
-            WRITE_LOG((_("Successfully received file: %s (%s)") + " %s") % \
-                      (filename, human_readable_size(flength), rate_str), \
+            WRITE_LOG(_("Successfully received file: %(FILE)s (%(SIZE)s) %(RATE)s") % \
+                      {"FILE": filename, "SIZE": human_readable_size(flength), "RATE": rate_str}, \
                       client_addr)
             self.send_html("<html><body>Successfully uploaded %s</body></html>" \
                            % (filename), HTTP_OK)
