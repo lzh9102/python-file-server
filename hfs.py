@@ -152,8 +152,9 @@ def WRITE_LOG(message, client=None):
     
     print(output)
 
-def DEBUG(message):
+def PRINT_DEBUG_MESSAGE(message):
     sys.stderr.write("DEBUG: %s\n" % (message))
+DEBUG = PRINT_DEBUG_MESSAGE
     
 class RateLimiter:
     MAX_PRECISION = 0.1
@@ -1159,6 +1160,8 @@ if __name__ == "__main__":
     parser.add_argument('--upload-path', type=str, default=OPT_UPLOAD_PATH)
     parser.add_argument('--upload-rate-limit', type=int, default=OPT_UPLOAD_RATE_LIMIT,
                         help="single file upload rate limit in KB/s")
+    parser.add_argument('--debug', action="store_true", default=False,
+                        help="print debug messages")
     args = parser.parse_args()
     
     FILES = args.file
@@ -1172,6 +1175,9 @@ if __name__ == "__main__":
         PREFIX = '/' + PREFIX
     if PREFIX.endswith('/'):
         PREFIX = PREFIX[0:len(PREFIX)-1]
+        
+    if not args.debug:
+        DEBUG = lambda x: 0 # disable debug messages
         
     if OPT_UPLOAD_PATH and not os.path.isdir(OPT_UPLOAD_PATH):
         sys.stderr.write( \
@@ -1195,8 +1201,8 @@ if __name__ == "__main__":
         server.OPT_UPLOAD_RATE_LIMIT = OPT_UPLOAD_RATE_LIMIT * 1024
         
         WRITE_LOG(_("Server started on port %d") % (OPT_PORT))
-        #DEBUG("System Language: " + locale.getdefaultlocale()[0])
-        #DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
+        DEBUG("System Language: " + locale.getdefaultlocale()[0])
+        DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
         
         server.serve_forever()
     except socket.error as e:
