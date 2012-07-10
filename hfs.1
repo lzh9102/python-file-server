@@ -5,7 +5,7 @@ http-file-share \- quickly share your files across the internet
 \fBhfs\fP [options] [\fIfile1\fP [\fIfile2\fP ...]]
 
 .SH DESCRIPTION
-http-file-share(\fIHFS\fP) is a file server that shares your files
+http-file-share (\fIHFS\fP) is a file server that shares your files
 across the HTTP protocol. After starting HFS, remote users
 can open up a browser, connect to it, and download the desired files.
 When a directory is shared, all its contents except symbolic link to
@@ -16,8 +16,8 @@ option enables remote users to select multiple files to be packed and
 downloaded as tar archives. You can limit the maximum download rate of
 a single file by \fB--rate-limit\fP \fIlimit\fP.
 .PP
-HFS also support uploading files, yet this functionality is not so complete
-currently. To enable uploading, set the directory to receive files by
+HFS also support uploading files, yet this functionality is not complete
+right now. To enable uploading, set the directory to receive files by
 \fB--upload-path\fP \fIdir\fP. The uploading function is tested to be working
 on Firefox and Chrome/Chromium clients but currently fails on Microsoft
 Internet Explorer. You can limit the maximum upload rate by
@@ -27,7 +27,7 @@ Internet Explorer. You can limit the maximum upload rate by
 show this help message and exit
 .TP
 \fB-p\fP \fIport\fP, \fB--port\fP \fIport\fP
-set the port to listen on (needs root privilege to listen on port < 1024)
+set the port to listen on (needs root privilege to listen on \fIport\fP < 1024)
 .TP
 \fB-f\fP, \fB--follow-link\fP
 follow symbolic links when listing files (disabled by default)
@@ -40,7 +40,7 @@ enable remote user to download mutiple files altogether in a tar archive
 single file download (send to client) rate limit in kbyte/sec
 .TP
 \fB--upload-path\fP \fIdir\fP
-save the received files in \fIdir\fP
+enable uploading and save received files in \fIdir\fP
 .TP
 \fB--upload-rate-limit\fP \fIrate\fP
 single file upload (receive from client) rate limit in kbyte/sec
@@ -49,7 +49,7 @@ single file upload (receive from client) rate limit in kbyte/sec
 print debug message to stderr
 
 .SH BUGS
-The upload interface currently don't work on Microsoft Internet Explorer
+The upload interface currently doesn't work on Microsoft Internet Explorer
 clients.
 
 .SH AUTHOR
