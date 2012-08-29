@@ -112,14 +112,6 @@ def strip_suffix(path):
         result = '/'
     return result
 
-def concat_folder_file(folder, file):
-    """ Concatenate folder name with file name.
-        If the folder name ends with a '/', the character will be removed """
-    if folder.endswith("/") or folder == "/" or folder == "":
-        return folder + file
-    else:
-        return folder + "/" + file
-
 def human_readable_size(nsize):
     K = 1024
     M = K * 1024
@@ -827,7 +819,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.rfile.read(blength) # discard the remaining contents
         
     def save_received_file(self, filename, rfile, length):
-        fullpath = concat_folder_file(self.server.UPLOAD_PATH, filename)
+        fullpath = os.path.join(self.server.UPLOAD_PATH, filename)
         try:
             with open(fullpath, "wb") as f:
                 left = length
@@ -953,7 +945,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             fileList = os.listdir(localpath)
             for f in fileList:
                 self.tar_recursive_add_files(tar, prefix + name + "/", \
-                                             concat_folder_file(localpath, f))
+                                             os.path.join(localpath, f))
                 
     def send_tar_download(self, id, ArchiveName=None):
         if id == None:
@@ -1045,16 +1037,16 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         for f in fileList:
             if ShowCheckbox:
                 chkbox_html = "<input type='checkbox' name='chkfiles[]' value='%s'>" \
-                    % (concat_folder_file(virtualpath, f))
+                    % (os.path.join(virtualpath, f))
             else:
                 chkbox_html = ""
                 
-            local_filename = (self.server.get_shared_file(f) if is_root else concat_folder_file(localpath, f))
+            local_filename = (self.server.get_shared_file(f) if is_root else os.path.join(localpath, f))
             
             if is_dir(local_filename, AllowLink=(self.server.OPT_FOLLOW_LINK or is_root)):
                 last_modified = self.date_time_string(os.path.getmtime(local_filename))
                 body += self.generate_table_row(i, chkbox_html + "(DIR) " + \
-                    self.generate_link(concat_folder_file(virtualpath, f)) \
+                    self.generate_link(os.path.join(virtualpath, f)) \
                     , "", last_modified)
                 i += 1
         
@@ -1062,15 +1054,15 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         for f in fileList:
             if ShowCheckbox:
                 chkbox_html = "<input type='checkbox' name='chkfiles[]' value='%s'>" \
-                    % (concat_folder_file(virtualpath, f))
+                    % (os.path.join(virtualpath, f))
             else:
                 chkbox_html = ""
             
-            local_filename = (self.server.get_shared_file(f) if is_root else concat_folder_file(localpath, f))
+            local_filename = (self.server.get_shared_file(f) if is_root else os.path.join(localpath, f))
             if is_file(local_filename): # is file
                 last_modified = self.date_time_string(os.path.getmtime(local_filename))
                 body += self.generate_table_row(i, chkbox_html + \
-                    self.generate_link(concat_folder_file(virtualpath, f)) \
+                    self.generate_link(os.path.join(virtualpath, f)) \
                     , human_readable_size(os.path.getsize(local_filename))
                     , last_modified)
                 i += 1
