@@ -17,6 +17,10 @@ check_port_available() {
 	return $?
 }
 
+quote_url() {
+	python -c "import urllib; print(urllib.quote(\"$1\"))"
+}
+
 if [ $# -lt 1 ]; then
 	echo "usage: $0 <file1> [<file2> [ <file3> ...]]"
 	exit 1
@@ -55,7 +59,7 @@ for ((port=$PORT; port<65536; port++)); do
 	check_port_available $port >& /dev/null
 	if [ $? -eq 0 ]; then
 		if [ $# -eq 1 ]; then
-			LINK="http://$SELF_ADDR:$port/file/$1"
+			LINK="http://$SELF_ADDR:$port/file/`quote_url "$1"`"
 		else
 			LINK="http://$SELF_ADDR:$port/"
 		fi
