@@ -611,6 +611,7 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
             final_key = "%s (%d)" % (key, index)
             index += 1
         self.SHARED_FILES[final_key] = path
+        return final_key
         
     def get_shared_file(self, key):
         if key not in self.SHARED_FILES:
