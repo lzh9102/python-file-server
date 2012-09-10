@@ -59,7 +59,8 @@ for ((port=$PORT; port<65536; port++)); do
 	check_port_available $port >& /dev/null
 	if [ $? -eq 0 ]; then
 		if [ $# -eq 1 ]; then
-			LINK="http://$SELF_ADDR:$port/file/`quote_url "$1"`"
+			BASENAME=`basename "$1"`
+			LINK="http://$SELF_ADDR:$port/file/`quote_url "$BASENAME"`"
 		else
 			LINK="http://$SELF_ADDR:$port/"
 		fi
