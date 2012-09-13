@@ -594,8 +594,8 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         self.OPT_UPLOAD_RATE_LIMIT = 1024 * 1024 * 10
         
         # The list of files appearing in the root of the virtual filesystem.
-        # TODO: Implement locking to protect concurrent access.
         self.SHARED_FILES = {}
+        self.SHARED_FILES_LOCK = threading.Lock()
         
         # The directory to save the uploaded files.
         # If the upload path is None, uploading will be disabled.
@@ -605,29 +605,32 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         self.DOWNLOAD_UUID_LOCK = threading.Lock()
         
     def add_shared_file(self, key, path):
-        final_key = key
-        index = 2
-        while self.SHARED_FILES.has_key(final_key): # Append an index if the filename alreaady exists.
-            final_key = "%s (%d)" % (key, index)
-            index += 1
-        self.SHARED_FILES[final_key] = path
-        return final_key
+        with self.SHARED_FILES_LOCK:
+            final_key = key
+            index = 2
+            while self.SHARED_FILES.has_key(final_key): # Append an index if the filename alreaady exists.
+                final_key = "%s (%d)" % (key, index)
+                index += 1
+            self.SHARED_FILES[final_key] = path
+            return final_key
         
     def get_shared_file(self, key):
-        if key not in self.SHARED_FILES:
-            return ""
-        else:
-            return self.SHARED_FILES[key]
+        with self.SHARED_FILES_LOCK:
+            if key not in self.SHARED_FILES:
+                return ""
+            else:
+                return self.SHARED_FILES[key]
     
     def remove_shared_file(self, key):
-        try:
-            self.SHARED_FILES.pop(key)
-        except Exception:
-            pass
+        with self.SHARED_FILES_LOCK:
+            try:
+                self.SHARED_FILES.pop(key)
+            except Exception:
+                pass
     
     def get_shared_files(self):
-        return self.SHARED_FILES.keys()
-    
+        with self.SHARED_FILES_LOCK:
+            return self.SHARED_FILES.keys()
 
     def push_download(self, fileList, uuid):
         with self.DOWNLOAD_UUID_LOCK:
