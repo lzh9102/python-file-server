@@ -44,6 +44,7 @@ import re
 import gettext
 from datetime import datetime
 import traceback
+import thread
 
 TRANSMIT_CHUNK_SIZE = 1024
 RECEIVE_CHUNK_SIZE = 1024
@@ -604,6 +605,9 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         self.DOWNLOAD_UUID = {} # map uuid to filelist
         self.DOWNLOAD_UUID_LOCK = threading.Lock()
         
+        self._running = False
+        self._state_lock = threading.Lock()
+        
     def add_shared_file(self, key, path):
         with self.SHARED_FILES_LOCK:
             final_key = key
@@ -644,6 +648,23 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
                 return fileList
             else:
                 return []
+            
+    def start(self):
+        with self._state_lock:
+            if not self._running:
+                thread.start_new_thread(self.serve_forever, ())
+                self._running = True
+        
+    def stop(self):
+        with self._state_lock:
+            if self._running:
+                self.shutdown()
+                self._running = False
+        
+    def is_running(self):
+        with self._state_lock:
+            return self._running
+        
 
 class MyServiceHandler(SimpleHTTPRequestHandler):
     """ This class provides HTTP service to the client """
