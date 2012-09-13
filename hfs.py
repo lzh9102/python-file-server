@@ -577,8 +577,8 @@ HTTP_MOVED_PERMANENTLY = 301
 
 class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
     
-    def __init__(self, server_address, RequestHandlerClass):
-        BaseHTTPServer.HTTPServer.__init__(self, server_address, RequestHandlerClass)
+    def __init__(self, server_address):
+        BaseHTTPServer.HTTPServer.__init__(self, server_address, MyServiceHandler)
         ###### Options and default values ######
 
         # whether to follow symlink folders
@@ -1178,7 +1178,7 @@ if __name__ == "__main__":
     
     """ server """
     try:
-        server = HttpFileServer(('', OPT_PORT), MyServiceHandler)
+        server = HttpFileServer(('', OPT_PORT))
         server.daemon_threads = True
         
         for f in FILES:
