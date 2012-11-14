@@ -70,8 +70,8 @@ Start the file server on port 8000 and share the root folder
 
 Start the file server, share hello.txt and copy the link to clipboard.
 
-	share hello.txt
+	hfs-share hello.txt
 
 Start the file server, wait for uploads, and copy the link to clipboard. The uploads are saved to home folder (~).
 
-	receive ~
+	hfs-receive ~
