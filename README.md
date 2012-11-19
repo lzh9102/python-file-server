@@ -1,13 +1,13 @@
 HTTP File Server
 ================
 
-This project provides users a easy-to-use command-line file server that helps
-you quickly share files using the http protocol. Receivers can just open the
-browser and browse the directory and files you have shared. The package also
-comes with two wrapper scripts: share and receive. These two scripts invokes
-the file server and copy the link to the clipboard, making it easier to share
-your files instantly. To use these two scripts, you must have xclip installed
-on your system.
+This project provides an easy-to-use command-line file server that helps
+quickly share files using the http protocol. Receivers can just open the
+browser and browse the shared directory and files. It also comes with two
+wrapper scripts: share and receive. These two scripts invokes the file server
+and copy the link to the clipboard, making it easier to share your files
+instantly. To use these two scripts, you must have xclip installed on your
+system.
 
 hfs is written in python and (in theory) runs on all platforms supported by
 cpython 2.6 or later. However, it cannot read unicode filenames on Windows. The
@@ -61,12 +61,12 @@ Usage Examples
 
 Start the file server on port 8000 and share all jpg files in the directory.
 
-	hfs -p 8000 *.jpg
+	hfs.py -p 8000 *.jpg
 
 Start the file server on port 8000 and share the root folder
 (please *never* try this on your computer):
 
-	hfs -p 8000 /
+	hfs.py -p 8000 /
 
 Start the file server, share hello.txt and copy the link to clipboard.
 
