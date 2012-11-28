@@ -4,13 +4,13 @@
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met: 
+# modification, are permitted provided that the following conditions are met:
 #
 # 1. Redistributions of source code must retain the above copyright notice, this
-#    list of conditions and the following disclaimer. 
+#    list of conditions and the following disclaimer.
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
-#    and/or other materials provided with the distribution. 
+#    and/or other materials provided with the distribution.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 # ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -82,7 +82,7 @@ def prefix(path):
 
 def suffix(path):
     return os.path.basename(path)
-    
+
 def strip_prefix(path):
     """ Remove the top-level folder name in path
         For example, if path is "/usr/bin/python", the output will be "/bin/python"
@@ -92,12 +92,12 @@ def strip_prefix(path):
     if result[0] == '/':
         result = result[1:]
     slash_index = result.find('/')
-    
+
     if slash_index >= 0:
         result = result[slash_index:]
     else:
         result = ""
-        
+
     if len(result) == 0: # '/' should be translated to '/'
         result = "/"
     return result
@@ -137,18 +137,18 @@ def WRITE_LOG(message, client=None):
     t = time.localtime()
     timestr = "%4d-%02d-%02d %02d:%02d:%02d" % \
         (t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec)
-    
+
     output = "[" + timestr + "] "
     if client != None:
         output += "Client " + client + ": "
     output += message
-    
+
     print(output)
 
 def PRINT_DEBUG_MESSAGE(message):
     sys.stderr.write("DEBUG: %s\n" % (message))
 DEBUG = PRINT_DEBUG_MESSAGE
-    
+
 class RateLimiter:
     MAX_PRECISION = 0.1
 
@@ -163,14 +163,14 @@ class RateLimiter:
             self.__counter = 0
             self.__counter_max = 0
             self.limit = lambda: self.__call_limit()
-    
+
     def __call_limit(self):
         self.__counter += 1
         if self.__counter > self.__counter_max:
             self.__counter = 0
             interval = time.time() - self.__prev_time
             min_interval = self.__period * (self.__counter_max + 1)
-            
+
             if interval < min_interval:
                 time.sleep(min_interval - interval)
 
@@ -180,7 +180,7 @@ class RateLimiter:
                 self.__counter_max -= 1
 
             self.__prev_time = time.time()
-            
+
 class RateLimitingWriter:
     """ Limit the writing rate to the file """
     def __init__(self, file, maxrate):
@@ -206,7 +206,7 @@ class RateLimitingWriter:
 __system_encoding = locale.getdefaultlocale()[1]
 def get_system_encoding():
     return __system_encoding
-    
+
 ###### HTML Templates ######
 
 FOLDER_LISTING_TEMPLATE = """
@@ -256,7 +256,7 @@ FILE_NOT_FOUND_TEMPLATE = """
 def generate_file_not_found_html(file):
     return FILE_NOT_FOUND_TEMPLATE % { \
             "TITLE": _("%s: file not found") % (file), \
-            "MESSAGE": _("%s doesn't exist on the server.") % (file) } 
+            "MESSAGE": _("%s doesn't exist on the server.") % (file) }
 
 CSS_UPLOAD = """
 body { font: 0.8em/1em "trebuchet MS", arial, sans-serif; color: #777; }
@@ -388,7 +388,7 @@ function FileAPI (t, d, f) {
         if (nsize > KILO) return (nsize / KILO).toFixed(2) + " KiB";
         return nsize.toFixed(2) + " B";
     }
-    var sec2str = function (seconds) {        
+    var sec2str = function (seconds) {
         var h = Math.floor(seconds / 3600);
         var m = Math.floor(seconds % 3600 / 60);
         var s = Math.floor(seconds % 3600 % 60);
@@ -504,7 +504,7 @@ function FileAPI (t, d, f) {
             }
             itemSetStatus(li, STATUS_TRANSFERRING);
         }
-    }    
+    }
 }
 window.onload = function () {
     if (typeof FileReader == "undefined") alert ("Sorry your browser does not support the File API and this demo will not work for you");
@@ -537,7 +537,7 @@ UPLOAD_TEMPLATE = """
         <title>HTTP File Share</title>
     </head>
     <body>
-        <div id="wrap">            
+        <div id="wrap">
 
             <form id="fileForm" action="" method="post" enctype="multipart/form-data">
                 <a href="%(ROOT)s">Return to download page</a>
@@ -577,37 +577,37 @@ HTTP_NOTFOUND = 404
 HTTP_MOVED_PERMANENTLY = 301
 
 class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
-    
+
     def __init__(self, server_address):
         BaseHTTPServer.HTTPServer.__init__(self, server_address, MyServiceHandler)
         ###### Options and default values ######
 
         # whether to follow symlink folders
         self.OPT_FOLLOW_LINK = False
-        
+
         # file transmission rate limit in bytes/sec
         self.OPT_RATE_LIMIT = 1024 * 1024 * 10
-        
+
         # whether to allow downloading as archive
         self.OPT_ALLOW_DOWNLOAD_TAR = False
-        
+
         # upload speed limit in bytes/sec
         self.OPT_UPLOAD_RATE_LIMIT = 1024 * 1024 * 10
-        
+
         # The list of files appearing in the root of the virtual filesystem.
         self.SHARED_FILES = {}
         self.SHARED_FILES_LOCK = threading.Lock()
-        
+
         # The directory to save the uploaded files.
         # If the upload path is None, uploading will be disabled.
         self.UPLOAD_PATH = None
-        
+
         self.DOWNLOAD_UUID = {} # map uuid to filelist
         self.DOWNLOAD_UUID_LOCK = threading.Lock()
-        
+
         self._running = False
         self._state_lock = threading.Lock()
-        
+
     def add_shared_file(self, key, path):
         with self.SHARED_FILES_LOCK:
             final_key = key
@@ -617,21 +617,21 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
                 index += 1
             self.SHARED_FILES[final_key] = path
             return final_key
-        
+
     def get_shared_file(self, key):
         with self.SHARED_FILES_LOCK:
             if key not in self.SHARED_FILES:
                 return ""
             else:
                 return self.SHARED_FILES[key]
-    
+
     def remove_shared_file(self, key):
         with self.SHARED_FILES_LOCK:
             try:
                 self.SHARED_FILES.pop(key)
             except Exception:
                 pass
-    
+
     def get_shared_files(self):
         with self.SHARED_FILES_LOCK:
             return self.SHARED_FILES.keys()
@@ -639,7 +639,7 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
     def push_download(self, fileList, uuid):
         with self.DOWNLOAD_UUID_LOCK:
             self.DOWNLOAD_UUID[uuid] = fileList
-        
+
     def pop_download(self, uuid):
         with self.DOWNLOAD_UUID_LOCK:
             if uuid in self.DOWNLOAD_UUID: # return and remove the download request
@@ -648,27 +648,27 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
                 return fileList
             else:
                 return []
-            
+
     def start(self):
         with self._state_lock:
             if not self._running:
                 thread.start_new_thread(self.serve_forever, ())
                 self._running = True
-        
+
     def stop(self):
         with self._state_lock:
             if self._running:
                 self.shutdown()
                 self._running = False
-        
+
     def is_running(self):
         with self._state_lock:
             return self._running
-        
+
 
 class MyServiceHandler(SimpleHTTPRequestHandler):
     """ This class provides HTTP service to the client """
-    
+
     def __init__(self, request, client_address, server):
         try:
             SimpleHTTPRequestHandler.__init__(self, request, client_address, server)
@@ -678,25 +678,25 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
     def log_message(self, format, *args):
         DEBUG("HTTP Server: " + (format % args))
-        
+
     def do_GET(self):
         """ Handle http GET request from client. """
         path = urllib.unquote(self.path)
-        
+
         DEBUG("HTTP GET Request: " + path)
-        
+
         self.parse_params()
         path = path.split("?")[0] # strip arguments from path
-        
+
         if len(PREFIX) == 0 or prefix(path) == PREFIX:
             """ Handle Virtual Filesystem """
             # strip path with PREFIX
             if len(PREFIX) != 0:
                 path = strip_prefix(path)
-            
+
             localpath = self.get_local_path(path)
             DEBUG("localpath: " + localpath)
-            
+
             allow_link = (self.server.OPT_FOLLOW_LINK or strip_suffix(path) == "/")
             if path == "/" or is_dir(localpath, AllowLink=allow_link):
                 """ Handle directory listing. """
@@ -704,35 +704,35 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 is_download_mode = self.server.OPT_ALLOW_DOWNLOAD_TAR and (self.get_param("dlmode") == "1")
                 content = self.generate_folder_listing(path, localpath, is_download_mode)
                 self.send_html(content)
-                
+
             elif is_file(localpath):
                 """ Handle file downloading. """
                 DEBUG("Download File: " + localpath)
                 client = self.client_address[0]
-                
-                try:                    
+
+                try:
                     WRITE_LOG(_("Start Downloading %s") % (path), client)
-                    
+
                     t0 = time.time()
                     size = self.send_file(localpath, RateLimit=self.server.OPT_RATE_LIMIT)
                     seconds = time.time() - t0
-                    
+
                     hrs = human_readable_size; # abbreviate the function
                     if seconds > 1:
                         download_rate = "(%s/sec)" % (hrs(float(size)/seconds))
                     else:
                         download_rate = ""
-                    
+
                     WRITE_LOG((_("Fully Downloaded %s")  + " - %s @ %d sec %s")
                         % (path, hrs(size), seconds, download_rate), client)
                 except Exception as e:
                     WRITE_LOG(_("Downloading Failed: %s") % (path), client)
                     DEBUG("Downloading Failed: " + localpath + " (" + e.message + ")")
-                
+
             else:
                 """ Handle File Not Found error. """
                 self.send_html(generate_file_not_found_html(path))
-                
+
         elif path == "/": # redirect '/' to /PREFIX
             self.send_html(generate_redirect_html(PREFIX))
         elif self.server.OPT_ALLOW_DOWNLOAD_TAR and path == DOWNLOAD_TAR_PREFIX:
@@ -741,22 +741,22 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             self.send_html(generate_upload_html())
         else: # data file
             self.send_response(HTTP_NOTFOUND, "Not Found")
-            
+
     def do_POST(self):
         path = urllib.unquote(self.path)
-        
+
         DEBUG("HTTP POST Request: " + path)
-        
+
         self.parse_params()
         path = path.split("?")[0] # strip arguments from path
-        
+
         if self.server.OPT_ALLOW_DOWNLOAD_TAR and path == DOWNLOAD_TAR_PREFIX:
             """ handle client downloading tar archive """
             clength = int(self.headers.dict['content-length'])
             content = urllib.unquote_plus(self.rfile.read(clength))
             virtualpath = self.get_param("r")
             fileList = []
-            
+
             for pair in content.split("&"):
                 try:
                     key, value = pair.split("=")
@@ -764,7 +764,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     key, value = (pair, "")
                 if key == "chkfiles[]":
                     fileList.append(value)
-                    
+
             if virtualpath != None:
                 redirect_html_body = """
                 <a href='%(DIR)s'>Back</a>
@@ -785,8 +785,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 """ % {"DIR": virtualpath}
             else:
                 virtualpath = ""
-                redirect_html_body = "File Download" 
-        
+                redirect_html_body = "File Download"
+
             if len(fileList) != 0:
                 retrieve_code = str(uuid.uuid4())
                 self.server.push_download(fileList, retrieve_code)
@@ -817,14 +817,14 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 break
 
         flength -= blength
-        
+
         client_addr = self.client_address[0]
-        
+
         WRITE_LOG(_("Start receiving file: %(FILE)s (%(SIZE)s)") \
                   % {"FILE": filename, "SIZE": human_readable_size(flength)}, client_addr)
-        
+
         t0 = time.time()
-        
+
         if self.save_received_file(filename, self.rfile, flength):
             seconds = time.time() - t0
             if seconds > 0:
@@ -840,9 +840,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             WRITE_LOG(_("Failed to receive file: %s") % (filename), client_addr)
             self.send_html("<html><body>Failed to upload %s</body></html>" \
                            % (filename), HTTP_NOTFOUND)
-        
+
         self.rfile.read(blength) # discard the remaining contents
-        
+
     def save_received_file(self, filename, rfile, length):
         fullpath = os.path.join(self.server.UPLOAD_PATH, filename)
         try:
@@ -863,31 +863,31 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                 return False
             else:
                 return True
-        
+
     def get_local_path(self, path):
         """ Translate a filename separated by "/" to the local file path. """
         path = posixpath.normpath(path)
         wordList = path.split('/')
         wordList = wordList[1:] # remove the first item because it is always empty
-        
+
         if len(wordList) == 0:
             return ""
-        
+
         root = self.server.get_shared_file(wordList[0])
         if root == "":
             return ""
         wordList = wordList[1:]
 
         path = root
-            
+
         for word in wordList:
             drive, word = os.path.splitdrive(word)
             head, word = os.path.split(word)
             if word in (os.curdir, os.pardir): continue
             path = os.path.join(path, word)
-        
+
         return path
-    
+
     def send_text(self, content, format=None, response=HTTP_OK):
         if not format:
             format = "plain"
@@ -897,13 +897,13 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.send_no_cache_header()
         self.end_headers()
         self.wfile.write(content)
-        
+
     def send_html(self, content, response=HTTP_OK):
         self.send_text(content, "html", response)
-        
+
     def send_xml(self, content, response=HTTP_OK):
         self.send_text(content, "xml", response)
-            
+
     def send_file(self, filename, RateLimit=0, AllowCache=False):
         """ Read the file and send it to the client.
             If the function succeeds, it returns the file size in bytes. """
@@ -911,7 +911,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         type,encoding = mimetypes.guess_type(filename)
         filesize = os.path.getsize(filename)
         last_modified = self.date_time_string(int(os.path.getmtime(filename)))
-        
+
         self.send_header("Content-Type", "%(TYPE)s;charset=%(ENCODING)s" % \
                          {"TYPE": type, "ENCODING": encoding})
         self.send_header("Content-Length", str(filesize))
@@ -919,14 +919,14 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         if not AllowCache:
             self.send_no_cache_header()
         self.end_headers()
-        
+
         if RateLimit == 0:
             rate_limit = 0 # no limit
         else:
             rate_limit = float(RateLimit) / TRANSMIT_CHUNK_SIZE
-            
+
         writer = RateLimitingWriter(self.wfile, rate_limit)
-        
+
         with open(filename, "rb") as f:
             while 1:
                 chunk = f.read(TRANSMIT_CHUNK_SIZE)
@@ -934,33 +934,33 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     writer.write(chunk)
                 else:
                     break
-        
+
         return filesize
-    
+
     def send_tar(self, virtualpaths, ArchiveName=None, RateLimit=0):
         if ArchiveName == None:
             ArchiveName = "archive.tar.gz"
-        
+
         self.send_response(HTTP_OK)
-        
+
         self.send_header("Content-Type", "application/x-tar")
         self.send_header("Content-Disposition", "attachment;filename=\"%s\""
                          % (ArchiveName))
         self.send_no_cache_header()
         self.end_headers()
-        
+
         if RateLimit == 0:
             rate_limit = 0 # no limit
         else:
             rate_limit = float(RateLimit) / TRANSMIT_CHUNK_SIZE
-        
+
         writer = RateLimitingWriter(self.wfile, rate_limit)
-        
+
         with tarfile.open(fileobj=writer, mode="w|gz", dereference=True) as tar:
             for f in virtualpaths:
                 localpath = self.get_local_path(f)
                 self.tar_recursive_add_files(tar, "", localpath)
-                
+
     def tar_recursive_add_files(self, tar, prefix, localpath):
         name = suffix(localpath)
         if is_file(localpath):
@@ -971,7 +971,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             for f in fileList:
                 self.tar_recursive_add_files(tar, prefix + name + "/", \
                                              os.path.join(localpath, f))
-                
+
     def send_tar_download(self, id, ArchiveName=None):
         if id == None:
             return
@@ -979,30 +979,30 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             ArchiveName = "archive.tar.gz"
 
         fileList = self.server.pop_download(id)
-        
+
         if len(fileList) != 0:
             self.send_tar(fileList, ArchiveName, self.server.OPT_RATE_LIMIT)
         else:
             self.send_html(generate_file_not_found_html(str("download " + id)))
-                
+
     def send_no_cache_header(self):
         """ Send HTTP header to prevent browser caching. """
         self.send_header("Cache-Control", "no-cache, must-revalidate")
         self.send_header("Expires", "Sat, 26 Jul 1997 05:00:00 GMT") # date in the past
-    
+
     def generate_parent_link(self, folder):
         """ Generate link for the parent directory of "folder" """
         if folder == "/":
             return "<u>Up</u>"
 
         parent_dir = strip_suffix(folder)
-        
+
         return "<a href='" + urllib.quote(PREFIX + parent_dir) + "'>Up</a>"
-    
+
     def generate_dlmode_link(self, virtualpath):
         link = PREFIX + virtualpath + "?dlmode=1"
         return "<a href='" + link + "'>Download Multiple Files</a>"
-            
+
     def generate_link(self, virtualpath, text=None):
         """ Generate html link for a file/folder. """
         text = (suffix(virtualpath) if text == None else text)
@@ -1010,7 +1010,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         link = (link[0:len(link)-1] if link.endswith('/') else link) # strip trailing '/'
         return "<a href='%(LINK)s'>%(NAME)s</a>" % \
             {"LINK": urllib.quote(link), "NAME": cgi.escape(text)}
-            
+
     def generate_table_row(self, index, *fields):
         """ Generate a html table row with fields.
             The index is used to decide the color of the row.
@@ -1024,7 +1024,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             result += "<td>" + str(f) + "</td>"
         result += "</tr>"
         return result
-    
+
     def generate_path_links(self, virtualpath):
         node_list = virtualpath.split("/")[1:]
         if virtualpath != '/':
@@ -1039,7 +1039,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             else:
                 result += " / " + self.generate_link(path, node)
         return result
-                
+
     def list_files(self, virtualpath, localpath, ShowCheckbox=False):
         """ List all the files in html. """
         i = 1 # this index is used to decide the color of a row
@@ -1051,13 +1051,13 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         else:
             fileList = sorted(os.listdir(localpath))
             is_root = False
-        
+
         body += "<table>"
-        
+
         # table title
         body += self.generate_table_row(-1, "File", "Size", "Last Modified")
         body += self.generate_table_row(-1, "", "", "")
-        
+
         # list subfolders
         for f in fileList:
             if ShowCheckbox:
@@ -1065,16 +1065,16 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     % (os.path.join(virtualpath, f))
             else:
                 chkbox_html = ""
-                
+
             local_filename = (self.server.get_shared_file(f) if is_root else os.path.join(localpath, f))
-            
+
             if is_dir(local_filename, AllowLink=(self.server.OPT_FOLLOW_LINK or is_root)):
                 last_modified = self.date_time_string(os.path.getmtime(local_filename))
                 body += self.generate_table_row(i, chkbox_html + "(DIR) " + \
                     self.generate_link(os.path.join(virtualpath, f)) \
                     , "", last_modified)
                 i += 1
-        
+
         # list files
         for f in fileList:
             if ShowCheckbox:
@@ -1082,7 +1082,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     % (os.path.join(virtualpath, f))
             else:
                 chkbox_html = ""
-            
+
             local_filename = (self.server.get_shared_file(f) if is_root else os.path.join(localpath, f))
             if is_file(local_filename): # is file
                 last_modified = self.date_time_string(os.path.getmtime(local_filename))
@@ -1091,21 +1091,21 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     , human_readable_size(os.path.getsize(local_filename))
                     , last_modified)
                 i += 1
-                
+
         body += "</table>"
-                              
+
         return body
 
     def generate_folder_listing(self, virtualpath, localpath, DownloadMode=False):
         """ Generate the file listing HTML for a folder. """
-                
+
         sep = "&nbsp;&nbsp;&nbsp;"
 
         body = "<form name='frmfiles' action='%s?r=%s' method='POST'>" \
                 % (DOWNLOAD_TAR_PREFIX, PREFIX + virtualpath)
-        
+
         body += self.generate_path_links(virtualpath)
-        
+
         if DownloadMode: # Show download button
             body += "<input type='submit' name='download_tar' value='Download Tar'/>"
             body += sep + "<a href='%s'>Back</a>" % (PREFIX + virtualpath) + "<br>"
@@ -1117,24 +1117,24 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
             if self.server.OPT_ALLOW_DOWNLOAD_TAR:
                 body += self.generate_dlmode_link(virtualpath)
             body += "</div>"
-        
+
         body += "<hr><br>"
-        
+
         allow_link = (self.server.OPT_FOLLOW_LINK or strip_suffix(virtualpath) == "/")
         if len(localpath) == 0 or is_dir(localpath, AllowLink=allow_link):
             body += self.list_files(virtualpath, localpath, ShowCheckbox=DownloadMode)
-            
+
         body += "<hr>"
         body += "</form>"
 
         return generate_folder_listing_html(body)
-    
+
     def get_param(self, key):
         if key in self.__params:
             return self.__params[key]
         else:
             return None
-    
+
     def parse_params(self):
         """ Parse the parameters from url and request body """
 
@@ -1161,7 +1161,7 @@ if __name__ == "__main__":
     OPT_UPLOAD_PATH = None
     OPT_RATE_LIMIT = 1024 * 10
     OPT_UPLOAD_RATE_LIMIT = 1024 * 10
-    
+
     parser = argparse.ArgumentParser(
             description="Share your files across the Internet.")
     parser.add_argument('file', type=str, nargs="*",
@@ -1180,7 +1180,7 @@ if __name__ == "__main__":
     parser.add_argument('--debug', action="store_true", default=False,
                         help="print debug messages")
     args = parser.parse_args()
-    
+
     FILES = args.file
     OPT_PORT = args.port
     OPT_FOLLOW_LINK = args.follow_link
@@ -1192,35 +1192,35 @@ if __name__ == "__main__":
         PREFIX = '/' + PREFIX
     if PREFIX.endswith('/'):
         PREFIX = PREFIX[0:len(PREFIX)-1]
-        
+
     if not args.debug:
         DEBUG = lambda x: 0 # disable debug messages
-        
+
     if OPT_UPLOAD_PATH and not os.path.isdir(OPT_UPLOAD_PATH):
         sys.stderr.write( \
             "Warning: Upload path" + OPT_UPLOAD_PATH + " is not a folder.")
-    
+
     """ server """
     try:
         server = HttpFileServer(('', OPT_PORT))
         server.daemon_threads = True
-        
+
         for f in FILES:
             if os.path.exists(f): # TODO: deal with duplicate filenames and files.
                 abspath = os.path.abspath(f)
                 server.add_shared_file(key=os.path.basename(abspath), path=abspath)
-        
+
         server.OPT_FOLLOW_LINK = OPT_FOLLOW_LINK
         server.OPT_ALLOW_DOWNLOAD_TAR = OPT_ALLOW_DOWNLOAD_TAR
         server.PREFIX = PREFIX
         server.UPLOAD_PATH = OPT_UPLOAD_PATH
         server.OPT_RATE_LIMIT = OPT_RATE_LIMIT * 1024
         server.OPT_UPLOAD_RATE_LIMIT = OPT_UPLOAD_RATE_LIMIT * 1024
-        
+
         WRITE_LOG(_("Server started on port %d") % (OPT_PORT))
         DEBUG("System Language: " + locale.getdefaultlocale()[0])
         DEBUG("System Encoding: " + locale.getdefaultlocale()[1])
-        
+
         server.serve_forever()
     except socket.error as e:
         if e.errno == 13: # permission denied
