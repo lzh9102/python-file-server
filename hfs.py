@@ -221,6 +221,20 @@ FOLDER_LISTING_TEMPLATE = """
         background-color: #CCFFFF
     }
     </style>
+    <script language="javascript">
+        function do_all(cb) {
+            var field = document.getElementsByTagName('input');
+            for (i=0; i<field.length; i++) {
+                if (field[i].name == 'chkfiles[]') cb(field[i]);
+            }
+        }
+        function select_all() {
+            do_all(function(chk){ chk.checked = true; });
+        }
+        function reverse_all() {
+            do_all(function(chk){ chk.checked = !chk.checked; });
+        }
+    </script>
     </head>
     <body>%(BODY)s</body>
 </html>
@@ -1108,6 +1122,8 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
         if DownloadMode: # Show download button
             body += "<input type='submit' name='download_tar' value='Download Tar'/>"
+            body += "<input type='button' onclick='select_all()' value='Select All'/>"
+            body += "<input type='button' onclick='reverse_all()' value='Reverse Selection'/>"
             body += sep + "<a href='%s'>Back</a>" % (PREFIX + virtualpath) + "<br>"
         else:   # Show navigation links and current path.
             #body += self.generate_parent_link(virtualpath)
