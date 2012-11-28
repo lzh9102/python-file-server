@@ -224,15 +224,20 @@ FOLDER_LISTING_TEMPLATE = """
     <script language="javascript">
         function do_all(cb) {
             var field = document.getElementsByTagName('input');
-            for (i=0; i<field.length; i++) {
+            for (i=0; i<field.length; i++)
                 if (field[i].name == 'chkfiles[]') cb(field[i]);
-            }
         }
         function select_all() {
             do_all(function(chk){ chk.checked = true; });
         }
         function reverse_all() {
             do_all(function(chk){ chk.checked = !chk.checked; });
+        }
+        function check_selected() {
+            var count = 0;
+            do_all(function(chk){ if(chk.checked)++count; });
+            if (count == 0) alert("Please select at least 1 file.");
+            return count > 0;
         }
     </script>
     </head>
@@ -1115,7 +1120,7 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
 
         sep = "&nbsp;&nbsp;&nbsp;"
 
-        body = "<form name='frmfiles' action='%s?r=%s' method='POST'>" \
+        body = "<form name='frmfiles' onsubmit='return check_selected()' action='%s?r=%s' method='POST'>" \
                 % (DOWNLOAD_TAR_PREFIX, PREFIX + virtualpath)
 
         body += self.generate_path_links(virtualpath)
