@@ -613,6 +613,9 @@ class HttpFileServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
         # upload speed limit in bytes/sec
         self.OPT_UPLOAD_RATE_LIMIT = 1024 * 1024 * 10
 
+        # always save the file instead of opening in browser (client side)
+        self.OPT_FORCE_SAVE = False
+
         # The list of files appearing in the root of the virtual filesystem.
         self.SHARED_FILES = {}
         self.SHARED_FILES_LOCK = threading.Lock()
@@ -733,7 +736,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
                     WRITE_LOG(_("Start Downloading %s") % (path), client)
 
                     t0 = time.time()
-                    size = self.send_file(localpath, RateLimit=self.server.OPT_RATE_LIMIT)
+                    size = self.send_file(localpath
+                                          , RateLimit=self.server.OPT_RATE_LIMIT
+                                          , AsAttchment = self.server.OPT_FORCE_SAVE)
                     seconds = time.time() - t0
 
                     hrs = human_readable_size; # abbreviate the function
@@ -923,9 +928,11 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
     def send_xml(self, content, response=HTTP_OK):
         self.send_text(content, "xml", response)
 
-    def send_file(self, filename, RateLimit=0, AllowCache=False):
+    def send_file(self, filename, RateLimit=0, AllowCache=False, AsAttchment=False):
         """ Read the file and send it to the client.
-            If the function succeeds, it returns the file size in bytes. """
+            If the function succeeds, it returns the file size in bytes.
+            AsAttchment: prevent the file from being opened directly in the browser
+        """
         self.send_response(HTTP_OK)
         type,encoding = mimetypes.guess_type(filename)
         filesize = os.path.getsize(filename)
@@ -937,6 +944,9 @@ class MyServiceHandler(SimpleHTTPRequestHandler):
         self.send_header("Last-Modified", last_modified)
         if not AllowCache:
             self.send_no_cache_header()
+        if AsAttchment:
+            self.send_header("Content-Disposition", "attachment;filename=\"%s\""
+                            % (suffix(filename)))
         self.end_headers()
 
         if RateLimit == 0:
@@ -1182,6 +1192,7 @@ if __name__ == "__main__":
     OPT_UPLOAD_PATH = None
     OPT_RATE_LIMIT = 1024 * 10
     OPT_UPLOAD_RATE_LIMIT = 1024 * 10
+    OPT_FORCE_SAVE = False
 
     parser = argparse.ArgumentParser(
             description="Share your files across the Internet.")
@@ -1198,6 +1209,8 @@ if __name__ == "__main__":
     parser.add_argument('--upload-path', type=str, default=OPT_UPLOAD_PATH)
     parser.add_argument('--upload-rate-limit', type=int, default=OPT_UPLOAD_RATE_LIMIT,
                         help="single file upload rate limit in KB/s")
+    parser.add_argument('-s', '--force-save', action="store_true", default=OPT_FORCE_SAVE,
+                        help="prevent the browser from opening the file directly")
     parser.add_argument('--debug', action="store_true", default=False,
                         help="print debug messages")
     args = parser.parse_args()
@@ -1209,6 +1222,7 @@ if __name__ == "__main__":
     OPT_UPLOAD_PATH = args.upload_path
     OPT_RATE_LIMIT = args.rate_limit
     OPT_UPLOAD_RATE_LIMIT = args.upload_rate_limit
+    OPT_FORCE_SAVE = args.force_save
     if not PREFIX.startswith('/'):
         PREFIX = '/' + PREFIX
     if PREFIX.endswith('/'):
@@ -1237,6 +1251,7 @@ if __name__ == "__main__":
         server.UPLOAD_PATH = OPT_UPLOAD_PATH
         server.OPT_RATE_LIMIT = OPT_RATE_LIMIT * 1024
         server.OPT_UPLOAD_RATE_LIMIT = OPT_UPLOAD_RATE_LIMIT * 1024
+        server.OPT_FORCE_SAVE = OPT_FORCE_SAVE
 
         WRITE_LOG(_("Server started on port %d") % (OPT_PORT))
         DEBUG("System Language: " + locale.getdefaultlocale()[0])
