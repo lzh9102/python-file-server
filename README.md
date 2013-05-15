@@ -2,9 +2,9 @@ HTTP File Server
 ================
 
 This project provides an easy-to-use command-line file server that helps
-quickly share files using the http protocol. Receivers can just open the
-browser and browse the shared directory and files. It also comes with two
-wrapper scripts: share and receive. These two scripts invokes the file server
+quickly share files using the http protocol. Receivers only have to open the
+browser to browse the shared directory and files. It also comes with two
+wrapper scripts: share and receive. These two scripts invoke the file server
 and copy the link to the clipboard, making it easier to share your files
 instantly. To use these two scripts, you must have xclip installed on your
 system.
