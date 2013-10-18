@@ -511,7 +511,7 @@ function FileAPI (t, d, f) {
             xhr.open("POST", upload_post_url, true);
             xhr.setRequestHeader("Cache-Control", "no-cache");
             xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-            xhr.setRequestHeader("X-File-Name", file.name);
+            xhr.setRequestHeader("X-File-Name", escape(file.name));
             xhr.send(data);
             li.getElementsByTagName("a")[0].onclick = function(ev) { // "remove" button
                 var msg = "Removing this item will cancel the upload. Continue?";
